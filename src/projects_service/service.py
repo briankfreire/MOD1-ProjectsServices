@@ -1,0 +1,42 @@
+from collections.abc import Callable
+from datetime import UTC, datetime
+from uuid import UUID, uuid4
+
+from projects_service.domain import Project, ProjectDraft, ProjectPage
+from projects_service.repository import ProjectRepository
+
+
+def utc_now() -> datetime:
+    return datetime.now(UTC)
+
+
+class ProjectsService:
+    def __init__(
+        self,
+        repository: ProjectRepository,
+        *,
+        clock: Callable[[], datetime] = utc_now,
+        id_factory: Callable[[], UUID] = uuid4,
+    ) -> None:
+        self.repository = repository
+        self.clock = clock
+        self.id_factory = id_factory
+
+    def create(self, owner_id: UUID, draft: ProjectDraft) -> Project:
+        return self.repository.add(
+            Project(
+                id=self.id_factory(),
+                owner_id=owner_id,
+                name=draft.name,
+                description=draft.description,
+                created_at=self.clock(),
+            )
+        )
+
+    def list(self, owner_id: UUID, *, limit: int = 20, offset: int = 0) -> ProjectPage:
+        if not 1 <= limit <= 100 or offset < 0:
+            raise ValueError("Invalid pagination")
+        return self.repository.list_owned(owner_id, limit=limit, offset=offset)
+
+    def get(self, owner_id: UUID, project_id: UUID) -> Project | None:
+        return self.repository.get_owned(owner_id, project_id)

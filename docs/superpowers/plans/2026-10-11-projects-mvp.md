@@ -54,7 +54,7 @@ Paths abaixo são relativos ao backend; prefixo `frontend/` significa o worktree
 | `frontend/tests/browser_support.py`, `test_projects_api.py`, `test_projects_ui.py`, `test_projects_real_api.py` | Configuração dinâmica, comportamento do cliente/UI e integração entre serviços reais |
 | `docs/verification.md`, `frontend/docs/verification.md`, `frontend/docs/screenshots/projects-*.png` | Evidências e roteiro de demonstração reproduzível |
 
-### Tarefa 1: Persistência de projetos e preparação explícita do banco
+### Task 1: Persistência de projetos e preparação explícita do banco
 
 **Files:** criar empacotamento/configuração, domínio, banco, modelo, repositório, serviço e CLI do mapa; criar `tests/conftest.py`, `test_projects.py`, `test_config_cli.py`, `test_postgres.py`; atualizar `README.md`; remover os placeholders `main.py`/`teste.py` apenas na branch.
 
@@ -80,7 +80,7 @@ Paths abaixo são relativos ao backend; prefixo `frontend/` significa o worktree
 - [ ] Executar os testes da tarefa e `uv run ruff check src tests`; esperado: PASS, com skip apenas de Postgres opt-in sem URL local. Corrigir falhas antes do commit.
 - [ ] Commitar somente arquivos da tarefa: `feat: add owner-scoped project persistence`; verificar trailer do Brian com `git log -1 --format=%B`.
 
-### Tarefa 2: API com autenticação independente e autorização por responsável
+### Task 2: API com autenticação independente e autorização por responsável
 
 **Files:** criar `security.py`, `routes.py`, `app.py`, `tests/test_security.py`, `tests/test_api.py`; ampliar fixtures, README e testes Postgres da tarefa 1.
 
@@ -103,7 +103,7 @@ Paths abaixo são relativos ao backend; prefixo `frontend/` significa o worktree
 - [ ] Executar `uv run pytest -q`, `uv run ruff check src tests`, `uv run mypy src/projects_service` e `uv build`; esperado: PASS/build, com apenas skips opt-in documentados. Confirmar a instalação do entry point no pacote.
 - [ ] Commitar arquivos da tarefa: `feat: expose authenticated projects API`; conferir coautoria.
 
-### Tarefa 3: Criar e consultar projetos no frontend existente
+### Task 3: Criar e consultar projetos no frontend existente
 
 **Files:** todos os arquivos frontend de produto do mapa; `frontend/tests/browser_support.py`, `test_projects_api.py`, `test_projects_ui.py`; atualizar README e PRODUCT do frontend apenas para descrever este fluxo.
 
@@ -126,7 +126,7 @@ Paths abaixo são relativos ao backend; prefixo `frontend/` significa o worktree
 - [ ] Executar suíte completa frontend com `AUTH_BACKEND_PATH` apontando ao worktree de identidade e o comando `uv run --no-project --with-requirements tests/requirements.txt python -m unittest discover -s tests -v`; esperado: regressões existentes e novos testes PASS. Revisar diff de projetos contra baseline preservada.
 - [ ] Commitar entrega frontend com mensagem `feat: add personal projects workspace` e trailer explícito do Brian. Arquivos compartilhados só são commitados após verificar também as mudanças existentes que precisam acompanhar a entrega; excluir screenshots/artefatos não relacionados.
 
-### Tarefa 4: Demonstração integrada e evidências com Neon
+### Task 4: Demonstração integrada e evidências com Neon
 
 **Files:** criar `frontend/tests/test_projects_real_api.py`; ampliar `frontend/tests/browser_support.py` somente quando necessário para fixture real; atualizar READMEs/verification de ambos; screenshots `frontend/docs/screenshots/projects-desktop-light.png`, `projects-mobile-dark.png`, `projects-validation-mobile.png`. Operação real em `.local/` e `.env`, não versionada.
 
