@@ -1,4 +1,4 @@
-# Projetos — MVP do Brian
+# ProjectServices
 
 Versão candidata SemVer: `0.1.0`, definida em `pyproject.toml`.
 Mudanças registradas em [CHANGELOG.md](CHANGELOG.md).
