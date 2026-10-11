@@ -117,4 +117,4 @@ Equipes/convites/papéis por projeto, edição e exclusão, backlog/atividades e
 
 Todo commit criado por Caue/Codex neste trabalho inclui `Co-authored-by: Brian Freire <briankfreire@outlook.com>`, conforme o e-mail informado pelo usuário. O clone local possui hook para acrescentar esse trailer sem duplicá-lo ou remover outros coautores. `AGENTS.md` registra a regra para os próximos clones. A main remota e os commits anteriores não são reescritos.
 
-Este documento é o desenho para revisão. A implementação seguirá um plano escrito após aprovação da especificação, conforme o fluxo arquitetural do Superpowers.
+Desenho e plano aprovados e implementados com execução nativa do Superpowers. Evidências e limites em docs/verification.md. Buscas de JWKS têm intervalo mínimo de 30 segundos, inclusive após falhas, preservando o cache de 300 segundos e a verificação independente de chaves conhecidas.

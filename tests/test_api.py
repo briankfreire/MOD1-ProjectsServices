@@ -1,6 +1,9 @@
+import json
 from uuid import uuid4
 
+import jwt
 import pytest
+from cryptography.hazmat.primitives.asymmetric import ec
 from fastapi.testclient import TestClient
 from sqlalchemy import event
 from sqlalchemy.exc import OperationalError
@@ -139,3 +142,13 @@ def test_unavailable_keys_deny_operation_but_not_liveness(issuer, monkeypatch):
         assert (
             client.post("/projects", json={"name": "A"}, headers=bearer(issuer)).status_code == 503
         )
+
+
+def test_trusted_source_without_rs256_keys_returns_503(client, issuer):
+    key = ec.generate_private_key(ec.SECP256R1())
+    public = json.loads(jwt.algorithms.ECAlgorithm.to_jwk(key.public_key()))
+    public.update(kid="ec-key", alg="ES256", use="sig")
+    issuer["state"]["payload"] = {"keys": [public]}
+    result = client.get("/projects", headers=bearer(issuer))
+    assert result.status_code == 503
+    assert result.headers["cache-control"] == "no-store"

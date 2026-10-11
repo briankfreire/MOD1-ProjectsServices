@@ -25,9 +25,14 @@ da entrega. Outra conta não pode consultar esse conteúdo, mesmo conhecendo seu
   validação no celular. Sem overflow horizontal; foco no detalhe ao criar e no campo
   inválido ao enviar formulário vazio. Uma rodada de inspeção visual foi suficiente.
 
-Resultado: **68 testes backend passaram, 1 PostgreSQL local opt-in pendente**;
+Resultado: **73 testes backend passaram, 1 PostgreSQL local opt-in pendente**;
 **47 testes frontend passaram**, incluindo integração com ambas as APIs reais.
-Ruff, mypy e build de wheel/sdist passaram. Revisão independente em andamento.
+Ruff, mypy e build de wheel/sdist passaram. Revisão independente concluída;
+dois achados importantes corrigidos com regressões RED→GREEN: fonte sem chaves
+RS256 retorna 503, e buscas por kid desconhecido são limitadas sem bloquear
+validação por uma chave já conhecida. Auditoria adicional corrigiu o sdist:
+wheel e sdist excluem `.env`, `.local` e `.superpowers`; teste usa segredos fictícios.
+Os pacotes anteriores existiam somente em `dist` ignorado e não foram publicados.
 
 ## Roteiro da apresentação (2–3 minutos)
 
@@ -59,6 +64,9 @@ sessão do navegador. Chaves privadas pertencem exclusivamente à autenticação
   sistema foi preservada. Os comandos reproduzíveis precisam desse bootstrap aqui.
 - A fixture integrada aguarda por até 5 segundos a liberação de arquivos temporários
   pelo Windows depois de encerrar exclusivamente os processos que criou.
+- Buscas de JWKS respeitam intervalo de 30 segundos, inclusive após falhas, com cache
+  válido por 300 segundos. Uma chave recém-rotacionada pode aguardar até 30 segundos
+  para ser consultada novamente; chaves conhecidas não aguardam essa busca.
 
 Credenciais, JWTs e evidências operacionais com contas sintéticas ficam em arquivos
 ignorados. Nenhum teste removeu dados/schemas do Neon ou alterou identidade.

@@ -1,6 +1,6 @@
 # Projects MVP Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Permitir criar, listar e consultar projetos próprios no frontend existente, com persistência no Neon e isolamento entre contas.
 
@@ -135,21 +135,21 @@ Paths abaixo são relativos ao backend; prefixo `frontend/` significa o worktree
 - Fixture usa `AUTH_BACKEND_PATH` e `PROJECTS_BACKEND_PATH`, processos em portas loopback efêmeras, banco SQLite temporário de cada serviço e RSA sintético do emissor. Não depende das APIs da demonstração nem do Neon.
 - Entrega registro seguro de evidência: provider, status, ids sintéticos, contagens de testes; sem senha, JWT, DSN ou key material. Roteiro reproduzível de três serviços e link da versão específica do MVP quando a branch for publicada.
 
-- [ ] Escrever `test_register_login_create_restart_and_second_account_denied`: cadastrar A pela API real, entrar pelo navegador, criar/ler projeto, reiniciar processo de projetos com mesmo arquivo, relogar e encontrar item; cadastrar/entrar B, verificar lista sem item e GET direto A -> 404; auth ausente -> 401.
-- [ ] Executar a nova suíte integrada com as duas variáveis acima; esperado antes da fixture completa: falha por setup/processo não implementado. Se já passa com serviços das tarefas anteriores, registrar o PASS como verificação de integração, sem inventar falha.
-- [ ] Implementar fixture real com teardown de processos/arquivos temporários próprios; init explicitamente antes do runtime; não alterar `.env`/portas dos serviços em uso.
-- [ ] Executar suítes backend e frontend completas, lint, mypy e build dos comandos anteriores; esperado: PASS com skips opt-in justificados; integração não deve pular quando ambos os paths estão configurados.
-- [ ] Provisionar Neon por conexão administrativa existente, lida sem imprimir: init schema `projects`; criar role runtime dedicada `mod1_projects_runtime` com senha gerada localmente e somente grants previstos. Gerar `.env` ignorado com DSN runtime/TLS verify-full e bundle confiável, sem modificar credencial/schema de identidade.
-- [ ] Verificar privilégios por metadados: schema projects USAGE, tabela SELECT/INSERT; sem CREATE, UPDATE, DELETE e sem acesso a schema/tabelas de identidade. Runtime executa readiness/criação/listagem e startup não exige credencial administrativa.
-- [ ] Executar smoke não destrutivo com contas sintéticas A/B na stack local/Neon: cadastro, login, POST 201, listagem, detalhe; B -> 404; sem token -> 401; reiniciar somente a API de projetos e confirmar persistência. Reutilizar ids registrados em `.local/` para inspeção, sem limpar dados remotos.
-- [ ] Inspecionar desktop 1440/light e mobile 390/dark num único lote: lista/detalhe/validação, teclado, foco, mensagens e ausência de overflow. Corrigir problemas juntos e fazer no máximo uma rodada visual de confirmação; salvar screenshots sintéticos aprovados.
-- [ ] Atualizar READMEs e verification com comandos PowerShell, variáveis públicas, limitações JWT/equipes, roteiro de 2–3 minutos e resultados reais; distinguir testes isolados, skips Postgres local e smoke Neon.
-- [ ] Solicitar revisão final conforme `superpowers:requesting-code-review` usando o método escolhido pelo usuário; corrigir achados materiais e repetir apenas os checks afetados. Não declarar conclusão com achado material pendente.
-- [ ] Commitar evidências de cada repositório separadamente com coautoria do Brian e escopo revisado; verificar `git diff --check`, status e trailers. Não mesclar/reescrever main. Se publicação estiver disponível/autorizada, publicar branch e preparar PR draft; caso contrário, fornecer commits locais e informar a limitação concreta.
+- [x] Escrever `test_register_login_create_restart_and_second_account_denied`: cadastrar A pela API real, entrar pelo navegador, criar/ler projeto, reiniciar processo de projetos com mesmo arquivo, relogar e encontrar item; cadastrar/entrar B, verificar lista sem item e GET direto A -> 404; auth ausente -> 401.
+- [x] Executar a nova suíte integrada com as duas variáveis acima; esperado antes da fixture completa: falha por setup/processo não implementado. Se já passa com serviços das tarefas anteriores, registrar o PASS como verificação de integração, sem inventar falha.
+- [x] Implementar fixture real com teardown de processos/arquivos temporários próprios; init explicitamente antes do runtime; não alterar `.env`/portas dos serviços em uso.
+- [x] Executar suítes backend e frontend completas, lint, mypy e build dos comandos anteriores; esperado: PASS com skips opt-in justificados; integração não deve pular quando ambos os paths estão configurados.
+- [x] Provisionar Neon por conexão administrativa existente, lida sem imprimir: init schema `projects`; criar role runtime dedicada `mod1_projects_runtime` com senha gerada localmente e somente grants previstos. Gerar `.env` ignorado com DSN runtime/TLS verify-full e bundle confiável, sem modificar credencial/schema de identidade.
+- [x] Verificar privilégios por metadados: schema projects USAGE, tabela SELECT/INSERT; sem CREATE, UPDATE, DELETE e sem acesso a schema/tabelas de identidade. Runtime executa readiness/criação/listagem e startup não exige credencial administrativa.
+- [x] Executar smoke não destrutivo com contas sintéticas A/B na stack local/Neon: cadastro, login, POST 201, listagem, detalhe; B -> 404; sem token -> 401; reiniciar somente a API de projetos e confirmar persistência. Reutilizar ids registrados em `.local/` para inspeção, sem limpar dados remotos.
+- [x] Inspecionar desktop 1440/light e mobile 390/dark num único lote: lista/detalhe/validação, teclado, foco, mensagens e ausência de overflow. Corrigir problemas juntos e fazer no máximo uma rodada visual de confirmação; salvar screenshots sintéticos aprovados.
+- [x] Atualizar READMEs e verification com comandos PowerShell, variáveis públicas, limitações JWT/equipes, roteiro de 2–3 minutos e resultados reais; distinguir testes isolados, skips Postgres local e smoke Neon.
+- [x] Solicitar revisão final conforme `superpowers:requesting-code-review` usando o método escolhido pelo usuário; corrigir achados materiais e repetir apenas os checks afetados. Não declarar conclusão com achado material pendente.
+- [x] Commitar evidências de cada repositório separadamente com coautoria do Brian e escopo revisado; verificar `git diff --check`, status e trailers. Não mesclar/reescrever main. Se publicação estiver disponível/autorizada, publicar branch e preparar PR draft; caso contrário, fornecer commits locais e informar a limitação concreta.
 
 ## Auto-revisão do plano
 
 - Cobertura: modelo/persistência/CLI (1), JWT/HTTP/erros/saúde (2), fluxo/visual/sessão (3), Neon/isolamento/persistência/demonstração (4).
 - Interfaces: nomes de campos/retornos são os mesmos no domínio, HTTP e cliente; apenas UUID/datetime passam a strings no JSON. `clear()` integra logout/expiração e `close()` invalida navegação.
 - Cinco focos de revisão têm testes explícitos nas tarefas indicadas. Nenhuma etapa pede alteração do emissor ou operação destrutiva remota.
-- Execução aguardando revisão deste plano e escolha de método. Recomendação: execução nativa, pois quatro entregas compartilham os contratos da API, seguida de revisão independente final.
+- Execução nativa aprovada e concluída, seguida de revisão independente final e correção dos achados materiais. Evidências em docs/verification.md. Integração/publicação das branches aguardam escolha do usuário.

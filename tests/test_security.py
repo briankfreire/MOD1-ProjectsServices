@@ -1,5 +1,7 @@
 import json
 import time
+from concurrent.futures import ThreadPoolExecutor
+from threading import Event
 from uuid import uuid4
 
 import jwt
@@ -55,7 +57,9 @@ def test_requires_claims(issuer, name):
         TokenVerifier(issuer["settings"]).verify(issuer["token"](omit=[name]))
 
 
-def test_jwks_outage_cache_and_rotation(issuer):
+def test_jwks_outage_cache_and_rotation(issuer, monkeypatch):
+    clock = [1000.0]
+    monkeypatch.setattr("time.monotonic", lambda: clock[0])
     verifier = TokenVerifier(issuer["settings"])
     token = issuer["token"]()
     assert verifier.verify(token) == issuer["owner"]
@@ -63,7 +67,7 @@ def test_jwks_outage_cache_and_rotation(issuer):
     assert verifier.verify(token) == issuer["owner"]
     with pytest.raises(SigningKeysUnavailable):
         TokenVerifier(issuer["settings"]).verify(token)
-    verifier.client.jwk_set_cache.lifespan = 0
+    clock[0] += 301
     with pytest.raises(SigningKeysUnavailable):
         verifier.verify(token)
     issuer["state"]["status"] = 200
@@ -75,6 +79,7 @@ def test_jwks_outage_cache_and_rotation(issuer):
     public = json.loads(jwt.algorithms.RSAAlgorithm.to_jwk(new_key.public_key()))
     public.update(kid="rotated", alg="RS256", use="sig")
     issuer["state"]["payload"] = {"keys": [public]}
+    clock[0] += 31
     assert verifier.verify(issuer["token"](signing_key=new_key, headers={"kid": "rotated"}))
 
 
@@ -95,3 +100,50 @@ def test_jwks_timeout_is_unavailable(issuer, monkeypatch):
     with pytest.raises(SigningKeysUnavailable) as error:
         verifier.verify(issuer["token"]())
     assert "private" not in str(error.value)
+
+
+@pytest.mark.parametrize("status", [200, 503])
+def test_unknown_kids_have_bounded_refresh_attempts(issuer, monkeypatch, status):
+    clock = [1000.0]
+    monkeypatch.setattr("time.monotonic", lambda: clock[0])
+    verifier = TokenVerifier(issuer["settings"])
+    assert verifier.verify(issuer["token"]()) == issuer["owner"]
+    issuer["state"]["status"] = status
+    clock[0] += 31
+    for kid in ("unknown-a", "unknown-b", "unknown-c"):
+        with pytest.raises((AuthenticationRejected, SigningKeysUnavailable)):
+            verifier.verify(issuer["token"](headers={"kid": kid}))
+    assert issuer["state"]["requests"] == 2
+    assert verifier.verify(issuer["token"]()) == issuer["owner"]
+    clock[0] += 31
+    with pytest.raises((AuthenticationRejected, SigningKeysUnavailable)):
+        verifier.verify(issuer["token"](headers={"kid": "unknown-d"}))
+    assert issuer["state"]["requests"] == 3
+
+
+def test_cached_signature_does_not_wait_for_slow_unknown_kid(issuer, monkeypatch):
+    clock = [1000.0]
+    monkeypatch.setattr("time.monotonic", lambda: clock[0])
+    verifier = TokenVerifier(issuer["settings"])
+    token = issuer["token"]()
+    verifier.verify(token)
+    clock[0] += 31
+    started, release = Event(), Event()
+    fetch = verifier.client.fetch_data
+
+    def slow_fetch():
+        started.set()
+        assert release.wait(5)
+        return fetch()
+
+    monkeypatch.setattr(verifier.client, "fetch_data", slow_fetch)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        unknown = pool.submit(verifier.verify, issuer["token"](headers={"kid": "unknown"}))
+        try:
+            assert started.wait(2)
+            known = pool.submit(verifier.verify, token)
+            assert known.result(timeout=0.5) == issuer["owner"]
+        finally:
+            release.set()
+        with pytest.raises(AuthenticationRejected):
+            unknown.result(timeout=2)
