@@ -10,7 +10,7 @@ com schema `projects`, conexão TLS verify-full e credencial runtime própria.
 uv sync --python 3.12 --no-install-project
 uv sync --no-build-isolation
 # Use uma conexão administrativa somente nesta execução explícita:
-uv run --no-build-isolation projects-service init
+uv run --no-build-isolation python -m projects_service.cli init
 # Depois use a conexão runtime limitada a USAGE no schema e SELECT/INSERT na tabela.
 ```
 
@@ -35,7 +35,7 @@ inclui Brian Freire (`briankfreire@outlook.com`) como coautor.
 ## API local
 
 ```powershell
-uv run --no-build-isolation uvicorn projects_service.app:create_app --factory --host 127.0.0.1 --port 8001
+uv run --no-build-isolation python -m uvicorn projects_service.app:create_app --factory --host 127.0.0.1 --port 8001 --no-access-log
 ```
 
 Identidade em `http://127.0.0.1:8000` publica o JWKS. A API de projetos recebe

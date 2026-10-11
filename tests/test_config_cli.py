@@ -61,3 +61,24 @@ def test_cli_failure_does_not_echo_connection(tmp_path, monkeypatch, capsys):
     assert main(["init"]) == 1
     captured = capsys.readouterr()
     assert "secret-password" not in captured.err + captured.out
+
+
+def test_cli_module_runs_init(tmp_path):
+    import os
+    import subprocess
+    import sys
+
+    url = f"sqlite:///{tmp_path / 'module.db'}"
+    result = subprocess.run(
+        [sys.executable, "-m", "projects_service.cli", "init"],
+        cwd=tmp_path,
+        env={**os.environ, "DATABASE_URL": url},
+        capture_output=True,
+        timeout=20,
+    )
+    assert result.returncode == 0
+    engine = create_database_engine(Settings(database_url=url, _env_file=None))
+    try:
+        assert inspect(engine).get_table_names() == ["projects"]
+    finally:
+        engine.dispose()
