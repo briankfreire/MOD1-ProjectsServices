@@ -12,7 +12,13 @@ def test_distributions_exclude_runtime_secrets_and_private_artifacts(tmp_path):
     for name in ("pyproject.toml", "README.md", "uv.lock"):
         shutil.copyfile(source / name, tmp_path / name)
     shutil.copytree(source / "src", tmp_path / "src")
-    for name in (".env", ".local/proof.json", ".superpowers/progress.md"):
+    for name in (
+        ".env",
+        ".local/proof.json",
+        ".superpowers/progress.md",
+        "docs/superpowers/plans/private-plan.md",
+        "docs/superpowers/specs/private-spec.md",
+    ):
         path = tmp_path / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("synthetic-private-marker", encoding="utf-8")
@@ -27,6 +33,9 @@ def test_distributions_exclude_runtime_secrets_and_private_artifacts(tmp_path):
     with zipfile.ZipFile(dist / wheel) as archive:
         names += archive.namelist()
     assert not any(
-        Path(name).name == ".env" or "/.local/" in name or "/.superpowers/" in name
+        Path(name).name == ".env"
+        or "/.local/" in name
+        or "/.superpowers/" in name
+        or "/superpowers/" in name
         for name in names
     )

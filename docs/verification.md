@@ -56,8 +56,6 @@ sessão do navegador. Chaves privadas pertencem exclusivamente à autenticação
 
 ## Ajustes de execução
 
-- Títulos `Task` no plano permitem que os scripts do Superpowers leiam as tarefas;
-  o conteúdo aprovado foi preservado, sem efeito no produto.
 - Windows App Control bloqueou intérpretes temporários e executáveis auxiliares
   gerados. O build usa Python 3.12 no ambiente local com dependências explícitas e
   `--no-build-isolation`; comandos de aplicação usam `python -m`. A política do

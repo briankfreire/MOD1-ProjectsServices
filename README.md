@@ -32,7 +32,7 @@ Neste Windows, a política de execução bloqueia ambientes Python temporários 
 O bootstrap acima mantém o build no ambiente local do projeto, com suas dependências
 de build instaladas; não altera a política do sistema.
 
-Desenho e plano aprovados estão em `docs/superpowers/`. Cada commit deste trabalho
+Cada commit deste trabalho
 inclui Brian Freire (`briankfreire@outlook.com`) como coautor.
 
 ## API local

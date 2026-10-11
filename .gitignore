@@ -1,6 +1,9 @@
 .worktrees/
 .venv/
 .local/
+# Artefatos locais do Superpowers (inclui docs/superpowers/)
+.superpowers/
+superpowers/
 .env
 .env.*
 !.env.example

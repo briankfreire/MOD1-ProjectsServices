@@ -27,7 +27,7 @@ include = [
   "/src/projects_service", "/tests", "/docs", "/pyproject.toml", "/uv.lock",
   "/README.md", "/CHANGELOG.md", "/AGENTS.md", "/.env.example", "/.gitignore", "/.gitattributes",
 ]
-exclude = ["**/__pycache__/**", "**/*.pyc"]
+exclude = ["**/__pycache__/**", "**/*.pyc", "**/.superpowers/**", "**/superpowers/**"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
