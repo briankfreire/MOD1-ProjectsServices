@@ -32,3 +32,27 @@ de build instaladas; não altera a política do sistema.
 Desenho e plano aprovados estão em `docs/superpowers/`. Cada commit deste trabalho
 inclui Brian Freire (`briankfreire@outlook.com`) como coautor.
 
+## API local
+
+```powershell
+uv run --no-build-isolation uvicorn projects_service.app:create_app --factory --host 127.0.0.1 --port 8001
+```
+
+Identidade em `http://127.0.0.1:8000` publica o JWKS. A API de projetos recebe
+somente a chave pública por essa URL confiável, valida RS256, issuer/audience,
+datas e UUIDs e aplica o responsável a cada consulta no servidor.
+
+| Rota | Resultado |
+| --- | --- |
+| `POST /projects` | Nome/descrição; 201 com id, owner_id, name, description, created_at |
+| `GET /projects?limit=20&offset=0` | items, total, limit, offset dos próprios projetos |
+| `GET /projects/{id}` | Detalhe próprio; outro responsável e id ausente retornam 404 |
+| `GET /health/live` | Aplicação viva, independente do banco/JWKS |
+| `GET /health/ready` | Acesso à tabela própria; 200 ou 503 |
+
+Projetos exigem Bearer e usam no-store. Entradas inválidas retornam 422;
+identidade inválida, 401; banco/chaves necessárias indisponíveis, 503.
+Nome aparado de 1–120 caracteres; descrição opcional até 2000; extras proibidos.
+Desativar conta bloqueia login no emissor, mas JWT emitido pode valer até expirar.
+Logout limpa a sessão do navegador. Este recorte não inclui equipes ou revogação.
+
