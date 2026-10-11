@@ -25,7 +25,7 @@ packages = ["src/projects_service"]
 [tool.hatch.build.targets.sdist]
 include = [
   "/src/projects_service", "/tests", "/docs", "/pyproject.toml", "/uv.lock",
-  "/README.md", "/AGENTS.md", "/.env.example", "/.gitignore", "/.gitattributes",
+  "/README.md", "/CHANGELOG.md", "/AGENTS.md", "/.env.example", "/.gitignore", "/.gitattributes",
 ]
 exclude = ["**/__pycache__/**", "**/*.pyc"]
 

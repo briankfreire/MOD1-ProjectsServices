@@ -152,4 +152,4 @@ Paths abaixo são relativos ao backend; prefixo `frontend/` significa o worktree
 - Cobertura: modelo/persistência/CLI (1), JWT/HTTP/erros/saúde (2), fluxo/visual/sessão (3), Neon/isolamento/persistência/demonstração (4).
 - Interfaces: nomes de campos/retornos são os mesmos no domínio, HTTP e cliente; apenas UUID/datetime passam a strings no JSON. `clear()` integra logout/expiração e `close()` invalida navegação.
 - Cinco focos de revisão têm testes explícitos nas tarefas indicadas. Nenhuma etapa pede alteração do emissor ou operação destrutiva remota.
-- Execução nativa aprovada e concluída, seguida de revisão independente final e correção dos achados materiais. Evidências em docs/verification.md. Integração/publicação das branches aguardam escolha do usuário.
+- Execução nativa aprovada e concluída, seguida de revisão independente final e correção dos achados materiais. Evidências em docs/verification.md. Publicação de branches/PRs e revisão por Brian aprovadas pelo usuário; merge permanece sujeito à revisão.

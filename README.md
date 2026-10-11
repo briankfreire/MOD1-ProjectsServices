@@ -1,5 +1,8 @@
 # Projetos — MVP do Brian
 
+Versão candidata SemVer: `0.1.0`, definida em `pyproject.toml`.
+Mudanças registradas em [CHANGELOG.md](CHANGELOG.md).
+
 Serviço independente para criar, listar e consultar projetos do usuário autenticado.
 Autenticação é fornecida pelo módulo de Caue, e o backlog futuro pertence ao de Igor.
 
