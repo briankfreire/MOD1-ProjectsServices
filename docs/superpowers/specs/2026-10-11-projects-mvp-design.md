@@ -115,6 +115,6 @@ Equipes/convites/papéis por projeto, edição e exclusão, backlog/atividades e
 
 ## Git e coautoria
 
-Todo commit criado por Caue/Codex neste trabalho inclui `Co-authored-by: Brian Freire <129770307+briankfreire@users.noreply.github.com>`. O clone local possui hook para acrescentar esse trailer sem duplicá-lo ou remover outros coautores. `AGENTS.md` registra a regra para os próximos clones. A main remota e os commits anteriores não são reescritos.
+Todo commit criado por Caue/Codex neste trabalho inclui `Co-authored-by: Brian Freire <briankfreire@outlook.com>`, conforme o e-mail informado pelo usuário. O clone local possui hook para acrescentar esse trailer sem duplicá-lo ou remover outros coautores. `AGENTS.md` registra a regra para os próximos clones. A main remota e os commits anteriores não são reescritos.
 
 Este documento é o desenho para revisão. A implementação seguirá um plano escrito após aprovação da especificação, conforme o fluxo arquitetural do Superpowers.
