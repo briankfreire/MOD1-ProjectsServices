@@ -14,6 +14,9 @@ def test_distributions_exclude_runtime_secrets_and_private_artifacts(tmp_path):
     shutil.copytree(source / "src", tmp_path / "src")
     for name in (
         ".env",
+        "AGENTS.md",
+        "docs/AGENTS.md",
+        "docs/agents.md",
         ".local/proof.json",
         ".superpowers/progress.md",
         "docs/superpowers/plans/private-plan.md",
@@ -34,6 +37,7 @@ def test_distributions_exclude_runtime_secrets_and_private_artifacts(tmp_path):
         names += archive.namelist()
     assert not any(
         Path(name).name == ".env"
+        or Path(name).name.lower() == "agents.md"
         or "/.local/" in name
         or "/.superpowers/" in name
         or "/superpowers/" in name

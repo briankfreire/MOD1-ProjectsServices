@@ -4,6 +4,9 @@
 # Artefatos locais do Superpowers (inclui docs/superpowers/)
 .superpowers/
 superpowers/
+# Instruções locais de agentes
+AGENTS.md
+agents.md
 .env
 .env.*
 !.env.example
