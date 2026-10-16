@@ -1,0 +1,41 @@
+name: API and container checks
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
+        with:
+          version: '0.12.24'
+          enable-cache: true
+      - name: Check Python
+        run: |
+          uv sync --locked
+          uv run --locked python -m ruff check .
+          uv run --locked python -m ruff format --check .
+          uv run --locked python -m mypy src/projects_service
+          uv run --locked python -m pytest -q
+      - name: Build and smoke with synthetic SQLite
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker build --check .
+          docker build --tag mod1-projects:check .
+          container=$(docker run --detach --tmpfs /validation:rw,uid=10001,gid=10001 \
+            --env DATABASE_URL=sqlite:////validation/smoke.db \
+            --env JWT_ISSUER=https://smoke.invalid \
+            --env JWT_PRIVATE_KEY_PATH=/validation/key.pem \
+            --publish 127.0.0.1::8001 --entrypoint sh mod1-projects:check \
+            -c 'python -m projects_service.cli init && exec uvicorn projects_service.app:create_app --factory --host 0.0.0.0 --port 8001 --no-access-log')
+          trap 'docker rm --force "$container" >/dev/null' EXIT
+          endpoint="http://$(docker port "$container" 8001/tcp)"
+          curl --fail --silent --show-error --retry 30 --retry-connrefused --retry-all-errors --retry-delay 2 --max-time 10 "$endpoint/health/ready"
+          docker exec "$container" python -c 'import os,pathlib; assert os.getuid()==10001; assert pathlib.Path("/etc/ssl/certs/ca-certificates.crt").is_file(); assert not any(pathlib.Path("/app", p).exists() for p in [".env", "AGENTS.md", "agents.md", ".superpowers", "superpowers"])'

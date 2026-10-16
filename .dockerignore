@@ -1,0 +1,7 @@
+*
+!pyproject.toml
+!uv.lock
+!src/
+!src/projects_service/
+!src/projects_service/*.py
+!Dockerfile
