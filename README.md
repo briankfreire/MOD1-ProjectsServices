@@ -37,6 +37,8 @@ inclui Brian Freire (`briankfreire@outlook.com`) como coautor.
 
 ## API local
 
+Para Docker e publicação no Azure Container Apps com Neon, consulte [deploy-azure.md](docs/deploy-azure.md). O workflow manual publica imagem por digest e pode atualizar uma API previamente provisionada.
+
 ```powershell
 uv run --no-build-isolation python -m uvicorn projects_service.app:create_app --factory --host 127.0.0.1 --port 8001 --no-access-log
 ```

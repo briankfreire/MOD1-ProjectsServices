@@ -46,7 +46,8 @@ class TokenVerifier:
 
         try:
             fresh = tuple(
-                key for key in self.client.get_signing_keys(refresh=True)
+                key
+                for key in self.client.get_signing_keys(refresh=True)
                 if key.algorithm_name == "RS256" and key.key_type == "RSA"
             )
             if not fresh:
