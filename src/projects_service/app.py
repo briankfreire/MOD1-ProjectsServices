@@ -24,7 +24,7 @@ def create_app(
         yield
         engine.dispose()
 
-    app = FastAPI(title="Projetos — MVP", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(title="Módulo 1 — Projetos", version="0.1.0", lifespan=lifespan)
     app.state.engine = engine
     app.state.verifier = verifier or TokenVerifier(settings)
     app.add_middleware(
