@@ -2,7 +2,7 @@ from collections.abc import Iterator
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
@@ -64,6 +64,28 @@ def get_project(project_id: UUID, owner: Owner, service: Service) -> Project:
     if project is None:
         raise HTTPException(404, "Project unavailable")
     return project
+
+
+@router.delete(
+    "/projects/{project_id}",
+    status_code=204,
+    response_class=Response,
+    responses={
+        401: {"description": "Authentication required"},
+        404: {"description": "Project unavailable (missing or not owned by the caller)"},
+        422: {"description": "Invalid project input"},
+        503: {"description": "Service temporarily unavailable"},
+    },
+    description=(
+        "Deletes only the caller's project. Backlog stories are retained but subsequent "
+        "backlog operations are denied. External links belong to their respective services; "
+        "this operation does not delete GitHub resources. Repeating a deletion returns 404."
+    ),
+)
+def delete_project(project_id: UUID, owner: Owner, service: Service) -> Response:
+    if not service.delete(owner, project_id):
+        raise HTTPException(404, "Project unavailable")
+    return Response(status_code=204)
 
 
 @router.get("/health/live")

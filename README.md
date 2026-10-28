@@ -1,10 +1,10 @@
 # ProjectServices
 
-Versão candidata SemVer: `0.1.0`, definida em `pyproject.toml`.
+Versão candidata SemVer: `0.2.0`, definida em `pyproject.toml` e refletida no OpenAPI.
 Mudanças registradas em [CHANGELOG.md](CHANGELOG.md).
 
-Serviço independente para criar, listar e consultar projetos do usuário autenticado.
-Autenticação é fornecida pelo módulo de Caue, e o backlog futuro pertence ao de Igor.
+Serviço independente para criar, listar, consultar e excluir projetos do usuário autenticado.
+Autenticação é fornecida pelo módulo de Caue, e o backlog pertence ao de Igor.
 
 Python 3.12 ou superior e uv. Copie `.env.example` para `.env` e configure o PostgreSQL
 com schema `projects`, conexão TLS verify-full e credencial runtime própria.
@@ -14,10 +14,12 @@ uv sync --python 3.12 --no-install-project
 uv sync --no-build-isolation
 # Use uma conexão administrativa somente nesta execução explícita:
 uv run --no-build-isolation python -m projects_service.cli init
-# Depois use a conexão runtime limitada a USAGE no schema e SELECT/INSERT na tabela.
+# Depois use a conexão runtime limitada a USAGE no schema e SELECT/INSERT/DELETE na tabela.
 ```
 
 O startup da API não prepara o banco. Schema e credencial de identidade permanecem separados.
+Instalações anteriores precisam conceder `DELETE` somente em `projects.projects`;
+consulte [database-neon.md](docs/database-neon.md). Não há migração de tabela.
 SQLite é usado apenas pela suíte isolada; não é necessário para a demonstração no Neon.
 
 ```powershell
@@ -52,6 +54,7 @@ datas e UUIDs e aplica o responsável a cada consulta no servidor.
 | `POST /projects` | Nome/descrição; 201 com id, owner_id, name, description, created_at |
 | `GET /projects?limit=20&offset=0` | items, total, limit, offset dos próprios projetos |
 | `GET /projects/{id}` | Detalhe próprio; outro responsável e id ausente retornam 404 |
+| `DELETE /projects/{project_id}` | Exclui projeto próprio; 204 sem corpo, ausente/alheio retorna 404 |
 | `GET /health/live` | Aplicação viva, independente do banco/JWKS |
 | `GET /health/ready` | Acesso à tabela própria; 200 ou 503 |
 
@@ -60,4 +63,24 @@ identidade inválida, 401; banco/chaves necessárias indisponíveis, 503.
 Nome aparado de 1–120 caracteres; descrição opcional até 2000; extras proibidos.
 Desativar conta bloqueia login no emissor, mas JWT emitido pode valer até expirar.
 Logout limpa a sessão do navegador. Este recorte não inclui equipes ou revogação.
+
+## Exclusão e integração com outros módulos
+
+O DELETE usa o mesmo Bearer, com proprietário derivado do JWT. Remove somente o
+projeto: histórias são preservadas no Backlog e operações posteriores nesse projeto
+retornam 404. Vínculos do GitHub Sync são responsabilidade do Módulo 2; repositórios,
+issues e PRs no GitHub não são apagados. Não há cascata nem restauração pela API.
+
+Contrato completo, erros, confirmação e reconciliação após timeout:
+[integration.md](docs/integration.md). O frontend deste repositório é separado;
+a confirmação solicitada será implementada pelo Módulo 2 no GitHub Sync.
+
+Regressão integrada opcional, com checkout do Backlog disponível:
+
+```powershell
+$env:BACKLOG_SERVICE_PATH = 'C:\CAMINHO\MOD1-BacklogService'
+.venv/Scripts/python.exe -m pytest tests/test_backlog_integration.py -q
+```
+
+O teste usa HTTP local, JWT/chaves sintéticos e SQLite temporário, sem Neon.
 

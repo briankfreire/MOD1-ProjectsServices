@@ -103,3 +103,29 @@ def test_persists_after_engine_recreation(tmp_path):
             assert reloaded == original and reloaded.created_at.tzinfo == UTC
     finally:
         recreated.dispose()
+
+
+def test_deletion_persists_after_engine_recreation(tmp_path):
+    settings = Settings(database_url=f"sqlite:///{tmp_path / 'delete.db'}", _env_file=None)
+    owner, other = uuid4(), uuid4()
+    engine = create_database_engine(settings)
+    init_schema(engine, settings.database_schema)
+    with Session(engine) as session:
+        service = ProjectsService(ProjectRepository(session))
+        project = service.create(owner, ProjectDraft(name="Remove"))
+        kept = service.create(owner, ProjectDraft(name="Keep"))
+        assert service.delete(other, project.id) is False
+        assert service.get(owner, project.id) == project
+        assert service.delete(owner, project.id) is True
+        assert service.delete(owner, project.id) is False
+    engine.dispose()
+
+    recreated = create_database_engine(settings)
+    try:
+        with Session(recreated) as session:
+            service = ProjectsService(ProjectRepository(session))
+            assert service.get(owner, project.id) is None
+            assert service.list(owner).items == [kept]
+            assert service.list(owner).total == 1
+    finally:
+        recreated.dispose()

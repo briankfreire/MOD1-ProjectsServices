@@ -40,3 +40,6 @@ class ProjectsService:
 
     def get(self, owner_id: UUID, project_id: UUID) -> Project | None:
         return self.repository.get_owned(owner_id, project_id)
+
+    def delete(self, owner_id: UUID, project_id: UUID) -> bool:
+        return self.repository.delete_owned(owner_id, project_id)

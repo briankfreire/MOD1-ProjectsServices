@@ -1,4 +1,34 @@
-# Evidências do MVP de projetos — 11/10/2026
+# Evidências do serviço de projetos
+
+## Candidato 0.2.0 — exclusão de projetos — 28/10/2026
+
+- Baseline anterior: 73 testes aprovados e um PostgreSQL opt-in não executado.
+- TDD: 13 cenários novos falharam antes da implementação (405, método inexistente
+  ou ausência do DELETE no CORS/OpenAPI) e passaram após a mudança.
+- Suíte completa de Projetos com `BACKLOG_SERVICE_PATH` configurado: **87 passed,
+  1 skipped**. O skip é PostgreSQL local por ausência de `TEST_DATABASE_URL`.
+  Sem checkout do Backlog configurado, a regressão integrada também é pulada.
+- Suíte completa do checkout de Backlog, sem modificar seu código: **118 passed,
+  1 skipped**. PostgreSQL local também não estava configurado.
+- Ruff lint/formato e mypy aprovados; `uv lock --check` aprovado; build de wheel
+  e sdist 0.2.0 aprovado. Pacote instalado e OpenAPI anunciam 0.2.0.
+- Testes verificam 204 vazio, 404 para ausente/alheio/repetição, JWT ausente,
+  inválido e expirado, UUID inválido, indisponibilidade JWKS, CORS, preservação
+  de outros projetos, rollback de SQL/commit e exclusão persistente após reinício.
+- Regressão integrada usa a API de Projetos servida por HTTP em porta local
+  aleatória e a API real do Backlog. JWT/JWKS e SQLite são temporários. Depois
+  do DELETE, listar/consultar/criar/alterar histórias recebe 404; a história
+  anterior continua armazenada e inalterada. Outro projeto segue acessível.
+- Revisão independente somente leitura concluída sem achados.
+
+Código preparado em `feat/project-delete`, worktree `.worktrees/project-delete`.
+Nenhum push, merge em main, tag, release, deploy ou comando SQL no Neon foi
+executado. A permissão DELETE em runtime ainda depende do operador, conforme
+[database-neon.md](database-neon.md). Não foi validado PostgreSQL, container ou
+deploy nesta rodada. A confirmação/limpeza de vínculos no GitHub Sync pertence
+ao Módulo 2; o contrato está em [integration.md](integration.md).
+
+## Registro histórico do MVP — 11/10/2026
 
 ## Valor demonstrado
 

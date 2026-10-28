@@ -1,7 +1,7 @@
 from datetime import UTC
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from projects_service.domain import Project, ProjectPage
@@ -55,3 +55,16 @@ class ProjectRepository:
             )
         )
         return to_project(row) if row else None
+
+    def delete_owned(self, owner_id: UUID, project_id: UUID) -> bool:
+        try:
+            deleted_id = self.session.scalar(
+                delete(ProjectRecord)
+                .where(ProjectRecord.id == project_id, ProjectRecord.owner_id == owner_id)
+                .returning(ProjectRecord.id)
+            )
+            self.session.commit()
+            return deleted_id is not None
+        except Exception:
+            self.session.rollback()
+            raise

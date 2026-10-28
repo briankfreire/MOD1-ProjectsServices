@@ -58,6 +58,16 @@ def test_local_postgres_persistence_and_owner_queries():
             page = repo.list_owned(a, limit=20, offset=0)
             assert page.total == 1 and page.items[0].id == p.id
             assert repo.get_owned(b, p.id) is None
+            assert repo.delete_owned(b, p.id) is False
+            assert repo.get_owned(a, p.id) == p
+            assert repo.delete_owned(a, p.id) is True
+        engine.dispose()
+        with Session(engine) as session:
+            repo = ProjectRepository(session)
+            assert repo.get_owned(a, p.id) is None
+            assert repo.list_owned(a, limit=20, offset=0).total == 0
+            assert repo.list_owned(b, limit=20, offset=0).total == 1
+            assert repo.delete_owned(a, p.id) is False
     finally:
         with engine.begin() as connection:
             connection.execute(DropSchema(schema, cascade=True))
