@@ -21,11 +21,40 @@
   anterior continua armazenada e inalterada. Outro projeto segue acessível.
 - Revisão independente somente leitura concluída sem achados.
 
+### Rodada complementar com PostgreSQL real — 28/10/2026
+
+Os dois skips de PostgreSQL foram resolvidos nesta rodada. Um PostgreSQL 16.15
+portátil foi preparado em `.local/postgres-tests`, com cluster temporário,
+credenciais sintéticas e acesso restrito a `127.0.0.1` em porta aleatória.
+Não foi instalado serviço do Windows nem utilizada conexão do `.env`/Neon.
+
+- **Projetos: 88 passed, nenhum skip**, incluindo PostgreSQL e integração HTTP
+  com a API real do Backlog. Tempo: 48,30 s.
+- **Backlog: 119 passed, nenhum skip**, incluindo PostgreSQL. Tempo: 35,57 s.
+- Conferência adicional com role runtime sintética: sem DELETE, a remoção é
+  recusada e o projeto permanece; após conceder DELETE somente na tabela própria,
+  a remoção funciona, outro proprietário não exclui e repetir não remove outra linha.
+- A mesma role não recebe UPDATE, CREATE no schema ou USAGE no schema de outro
+  serviço. Tentativas reais de UPDATE e leitura da tabela alheia foram recusadas.
+- Ruff lint/formato, mypy, lock check e build de wheel/sdist 0.2.0 passaram novamente.
+- O processo do banco foi encerrado e os clusters/dados temporários foram removidos.
+
+Execução reproduzível local, usando o helper ignorado da rodada:
+
+```powershell
+.venv/Scripts/python.exe -u .local/postgres-tests/run_tests.py
+```
+
+Esse helper prepara somente um banco descartável; não altera banco remoto.
+Em outro ambiente, configurar `TEST_DATABASE_URL` para PostgreSQL **local
+descartável** e `BACKLOG_SERVICE_PATH` conforme os READMEs permite executar as
+mesmas suítes versionadas. As credenciais não são incluídas na documentação.
+
 Código preparado em `feat/project-delete`, worktree `.worktrees/project-delete`.
 Nenhum push, merge em main, tag, release, deploy ou comando SQL no Neon foi
 executado. A permissão DELETE em runtime ainda depende do operador, conforme
-[database-neon.md](database-neon.md). Não foi validado PostgreSQL, container ou
-deploy nesta rodada. A confirmação/limpeza de vínculos no GitHub Sync pertence
+[database-neon.md](database-neon.md). Container e deploy não foram validados
+nesta rodada. A confirmação/limpeza de vínculos no GitHub Sync pertence
 ao Módulo 2; o contrato está em [integration.md](integration.md).
 
 ## Registro histórico do MVP — 11/10/2026
