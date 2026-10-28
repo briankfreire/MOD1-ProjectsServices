@@ -2,7 +2,7 @@ from uuid import uuid4
 
 import pytest
 from pydantic import ValidationError
-from sqlalchemy import inspect
+from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
 
 from projects_service.cli import main
@@ -82,3 +82,53 @@ def test_cli_module_runs_init(tmp_path):
         assert inspect(engine).get_table_names() == ["projects"]
     finally:
         engine.dispose()
+
+
+def test_migrate_old_schema_preserves_rows_twice_without_implicit_init_migration(
+    tmp_path, monkeypatch, capsys
+):
+    monkeypatch.chdir(tmp_path)
+    url = f"sqlite:///{tmp_path / 'old.db'}"
+    monkeypatch.setenv("DATABASE_URL", url)
+    settings = Settings(_env_file=None)
+    engine = create_database_engine(settings)
+    project_id, owner_id = uuid4(), uuid4()
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "CREATE TABLE projects (id CHAR(32) PRIMARY KEY, "
+                "owner_id CHAR(32) NOT NULL, name VARCHAR(120) NOT NULL, "
+                "description TEXT NOT NULL, created_at DATETIME NOT NULL)"
+            )
+        )
+        connection.execute(
+            text("INSERT INTO projects VALUES (:id, :owner, 'Old', 'Keep', '2026-10-01 12:00:00')"),
+            {"id": project_id.hex, "owner": owner_id.hex},
+        )
+    assert main(["init"]) == 0
+    assert "objective" not in {column["name"] for column in inspect(engine).get_columns("projects")}
+    assert main(["migrate"]) == 0
+    assert main(["migrate"]) == 0
+    with Session(engine) as session:
+        project = ProjectRepository(session).get_owned(owner_id, project_id)
+        assert project.name == "Old" and project.description == "Keep" and project.objective == ""
+        created = ProjectsService(ProjectRepository(session)).create(
+            owner_id, ProjectDraft(name="New", objective="Meta")
+        )
+        assert created.objective == "Meta"
+    engine.dispose()
+    captured = capsys.readouterr()
+    assert url not in captured.out + captured.err
+
+
+def test_migrate_missing_schema_fails_safely_without_creating_table(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'secret-empty.db'}")
+    assert main(["migrate"]) == 1
+    engine = create_database_engine(Settings(_env_file=None))
+    try:
+        assert inspect(engine).get_table_names() == []
+    finally:
+        engine.dispose()
+    captured = capsys.readouterr()
+    assert "secret-empty" not in captured.out + captured.err

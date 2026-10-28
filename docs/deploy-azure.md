@@ -5,7 +5,7 @@ A API usa um Azure Container App próprio com Neon. Os recursos compartilhados e
 ## Configuração deste serviço
 
 - Imagem: `REGISTRY.azurecr.io/projects@sha256:DIGEST`; Dockerfile Linux/Python 3.12, usuário 10001, porta alvo 8001 e host 0.0.0.0.
-- Neon: schema `projects`, papel runtime exclusivo com USAGE e SELECT/INSERT/DELETE somente em `projects.projects`. Antes de publicar 0.2.0, aplique e confira a permissão conforme [database-neon.md](database-neon.md). Use conexão direta com `sslmode=verify-full&sslrootcert=/etc/ssl/certs/ca-certificates.crt`.
+- Neon: schema `projects`, papel runtime exclusivo com USAGE e SELECT/INSERT/UPDATE/DELETE somente em `projects.projects`. Antes de publicar 0.3.0, execute explicitamente a migração de objective e confira as permissões conforme [database-neon.md](database-neon.md). Use conexão direta com `sslmode=verify-full&sslrootcert=/etc/ssl/certs/ca-certificates.crt`.
 - Key Vault: segredo versionado `projects-database-url`. Não copie a chave RSA de identidade para este serviço.
 - JWT: issuer igual à URL HTTPS estável da identidade, audience `engenharia-software-api` e JWKS em `URL_DA_IDENTIDADE/.well-known/jwks.json`.
 - CORS: somente a origem HTTPS estável do frontend. Readiness consulta o banco próprio; liveness não depende de banco/JWKS.

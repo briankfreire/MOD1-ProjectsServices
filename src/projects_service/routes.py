@@ -4,11 +4,12 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from pydantic import BeforeValidator
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from projects_service.domain import Project, ProjectDraft, ProjectPage
+from projects_service.domain import Project, ProjectDraft, ProjectPage, ProjectPatch
 from projects_service.models import ProjectRecord
 from projects_service.repository import ProjectRepository
 from projects_service.security import AuthenticationRejected, SigningKeysUnavailable
@@ -54,13 +55,31 @@ def list_projects(
     service: Service,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     offset: Annotated[int, Query(ge=0)] = 0,
+    q: Annotated[str, Query(max_length=120), BeforeValidator(str.strip)] = "",
 ) -> ProjectPage:
-    return service.list(owner, limit=limit, offset=offset)
+    return service.list(owner, limit=limit, offset=offset, q=q)
 
 
 @router.get("/projects/{project_id}", response_model=Project)
 def get_project(project_id: UUID, owner: Owner, service: Service) -> Project:
     project = service.get(owner, project_id)
+    if project is None:
+        raise HTTPException(404, "Project unavailable")
+    return project
+
+
+@router.patch(
+    "/projects/{project_id}",
+    response_model=Project,
+    responses={
+        401: {"description": "Authentication required"},
+        404: {"description": "Project unavailable (missing or not owned by the caller)"},
+        422: {"description": "Invalid project input"},
+        503: {"description": "Service temporarily unavailable"},
+    },
+)
+def patch_project(project_id: UUID, patch: ProjectPatch, owner: Owner, service: Service) -> Project:
+    project = service.patch(owner, project_id, patch)
     if project is None:
         raise HTTPException(404, "Project unavailable")
     return project

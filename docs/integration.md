@@ -1,4 +1,4 @@
-# Contrato de projetos — candidato 0.2.0
+# Contrato de projetos — candidato 0.3.0
 
 Projetos, Identidade e Backlog são serviços separados. Projetos valida JWT RS256
 pelo JWKS confiável configurado, usando os mesmos issuer/audience da Identidade.
@@ -9,15 +9,37 @@ O proprietário vem de `sub` do JWT; o cliente não escolhe `owner_id`.
 | Método | Rota | Sucesso |
 | --- | --- | --- |
 | POST | `/projects` | 201, Project |
-| GET | `/projects?limit=20&offset=0` | 200, ProjectPage dos próprios projetos |
+| GET | `/projects?q=&limit=20&offset=0` | 200, ProjectPage dos próprios projetos |
 | GET | `/projects/{project_id}` | 200, Project próprio |
+| PATCH | `/projects/{project_id}` | 200, Project próprio atualizado |
 | DELETE | `/projects/{project_id}` | 204, sem corpo |
 
-Project contém `id`, `owner_id`, `name`, `description`, `created_at` UTC.
+Project contém `id`, `owner_id`, `name`, `description`, `objective`, `created_at` UTC.
 ProjectPage contém `items`, `total`, `limit`, `offset`. Toda rota exige
 `Authorization: Bearer <JWT>` e responde com `Cache-Control: no-store`, inclusive
-nos erros. CORS permite DELETE somente para as origens previamente configuradas;
+nos erros. CORS permite PATCH e DELETE somente para as origens previamente configuradas;
 a origem do GitHub Sync precisa constar em `CORS_ORIGINS` se a chamada vier do navegador.
+
+## Criação, edição e busca — 0.3.0
+
+POST aceita `name` (aparado, 1–120), `description` e `objective` (strings até 2000,
+default `""`). PATCH aceita um subconjunto não vazio desses mesmos três campos;
+omitir preserva o valor existente, e strings vazias limpam descrição/objetivo.
+Null, extras, tipos incorretos e campos imutáveis retornam 422 sanitizado.
+`id`, `owner_id` e `created_at` permanecem iguais. O owner vem somente do JWT e
+integra o WHERE da própria instrução UPDATE, com id; commit precede a resposta 200.
+Projeto ausente/alheio recebe o mesmo 404 `{"detail":"Project unavailable"}`.
+401, 422 e 503 seguem os corpos seguros da tabela DELETE abaixo.
+
+GET `/projects` aceita `q` string aparada até 120 caracteres, default vazio.
+A busca é uma substring literal no nome, sem distinção de caixa: `%`, `_` e `/`
+não viram curingas. Não pesquisa descrição/objetivo. Proprietário e busca filtram
+antes do total e da paginação; a ordem continua created_at DESC, id DESC.
+Status/etiquetas não fazem parte desse filtro.
+
+Timeout/503 não confirma edição: consultar GET para reconciliar antes de repetir.
+Se o salvamento respondeu 200 e a recarga falhou, o cliente deve manter o sucesso
+da gravação e oferecer atualização manual.
 
 ## DELETE /projects/{project_id}
 
@@ -77,7 +99,8 @@ coordenação entre os responsáveis. A interface deve apresentar a política at
 
 ## Banco e implantação
 
-Não há mudança de tabela. A role runtime precisa de DELETE somente em sua tabela,
-além de SELECT/INSERT e USAGE já existentes. Procedimento do operador em
-[database-neon.md](database-neon.md). Sem a nova permissão, DELETE retorna 503;
-o health/ready verifica leitura e não comprova permissão de exclusão.
+A versão 0.3.0 exige migração explícita aditiva de `objective` em bancos antigos.
+A role runtime precisa de UPDATE e DELETE somente em sua tabela, além de
+SELECT/INSERT e USAGE já existentes. Procedimento do operador em
+[database-neon.md](database-neon.md). Sem UPDATE, PATCH retorna 503; readiness
+verifica leitura e não comprova permissões de escrita ou versão do schema.

@@ -1,5 +1,40 @@
 # Evidências do serviço de projetos
 
+## Conferência integrada do gerenciamento 0.3.0 — 28/10/2026
+
+- Suíte completa com PostgreSQL 16.15 descartável e Backlog novo: **114 passaram,
+  nenhum skip**, em 85,53 s. Inclui banco antigo preservado após migração repetida,
+  PATCH isolado por proprietário, busca/paginação e regressão do DELETE.
+- Integração no frontend 0.3.0: **85 testes passaram sem skips**, com as três
+  APIs reais e bancos temporários. Cadastro/edição de objetivo e busca funcionam
+  no navegador; o refinamento do backlog preserva a autorização pelo projeto.
+- Revisão independente dos backends sem achados críticos/importantes. Dois achados
+  de recuperação na interface foram reproduzidos em RED e corrigidos: confirmação
+  de gravação seguida de 401 e preservação do rascunho se atualizar retorna 503.
+- Ruff, formatação, mypy, lock check e wheel/sdist 0.3.0 passaram.
+- Nada foi aplicado ao Neon ou à main. Migração e grants para a futura publicação
+  continuam administrativos e explícitos; somente dados descartáveis foram usados.
+
+## Candidato 0.3.0 — edição e busca — 28/10/2026
+
+- Baseline: **86 passed, 2 skipped** (PostgreSQL e Backlog opt-in sem configuração).
+- RED API/CLI: **22 failed, 39 passed**, por objective ausente, PATCH 405,
+  filtro ignorado, CORS sem PATCH e CLI sem migrate. Após implementação: **61 passed**.
+- Suíte completa: **111 passed, 3 skipped**. Skips: persistência PostgreSQL,
+  migração PostgreSQL e integração Backlog, todos opt-in ainda sem configuração
+  nesta execução. A rodada integrada do coordenador será registrada separadamente.
+- Ruff check/formato, mypy (11 arquivos), lock check e git diff --check aprovados.
+- Wheel e sdist 0.3.0 gerados localmente; versão do pacote alimenta OpenAPI.
+- Cobertura de PATCH parcial, limites e Unicode, rejeição null/extras/imutáveis,
+  owner no WHERE SQL, rollback statement/commit, erros seguros e no-store/CORS.
+- Busca testa caixa, Unicode, `%`/`_` literais, trim, total/paginação e isolamento.
+- Migração SQLite em tabela antiga preserva registros, executa duas vezes e
+  comprova que init não migra a tabela; banco vazio não é criado por migrate.
+- PostgreSQL opt-in cobre tabela antiga, migração duas vezes, objective vazio,
+  edição/isolamento e busca persistentes após recriação da conexão.
+- DELETE e retenção do backlog mantidos; nenhuma operação remota realizada.
+- Revisão independente e PostgreSQL integrado ficam a cargo da rodada coordenada.
+
 ## Candidato 0.2.0 — exclusão de projetos — 28/10/2026
 
 - Baseline anterior: 73 testes aprovados e um PostgreSQL opt-in não executado.

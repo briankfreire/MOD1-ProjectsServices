@@ -30,7 +30,8 @@ def test_http_create_list_and_private_detail(client, issuer):
     response = client.post("/projects", json={"name": "  Projeto  "}, headers=headers)
     assert response.status_code == 201
     p = response.json()
-    assert set(p) == {"id", "owner_id", "name", "description", "created_at"}
+    assert set(p) == {"id", "owner_id", "name", "description", "objective", "created_at"}
+    assert p["objective"] == ""
     assert p["owner_id"] == str(issuer["owner"]) and p["name"] == "Projeto"
     page = client.get("/projects", headers=headers).json()
     assert page == {"items": [p], "total": 1, "limit": 20, "offset": 0}
@@ -300,3 +301,186 @@ def test_delete_openapi_documents_bearer_and_empty_success(client):
     assert "content" not in operation["responses"]["204"]
     for status in ("401", "404", "422", "503"):
         assert status in operation["responses"]
+
+
+def test_create_and_patch_objective_preserve_identity_and_partial_fields(client, issuer):
+    headers = bearer(issuer)
+    created = client.post(
+        "/projects",
+        json={"name": "Original", "description": "Keep", "objective": "Meta 🌱"},
+        headers=headers,
+    )
+    assert created.status_code == 201
+    original = created.json()
+    assert original["objective"] == "Meta 🌱"
+    path = "/projects/" + original["id"]
+    changed = client.patch(path, json={"name": "  Novo 🌱  "}, headers=headers)
+    assert changed.status_code == 200
+    assert changed.json() == {**original, "name": "Novo 🌱"}
+    cleared = client.patch(path, json={"description": "", "objective": ""}, headers=headers)
+    assert cleared.status_code == 200
+    assert cleared.json() == {**original, "name": "Novo 🌱", "description": "", "objective": ""}
+    assert client.get(path, headers=headers).json() == cleared.json()
+    assert changed.headers["cache-control"] == "no-store"
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        {},
+        {"name": " "},
+        {"name": "x" * 121},
+        {"name": None},
+        {"name": 2},
+        {"description": None},
+        {"objective": None},
+        {"objective": 2},
+        {"description": "x" * 2001},
+        {"objective": "x" * 2001},
+        {"owner_id": str(uuid4())},
+        {"created_at": "2026-01-01"},
+        {"extra": True},
+    ],
+)
+def test_patch_rejects_invalid_or_immutable_fields_without_echo(client, issuer, data):
+    headers = bearer(issuer)
+    original = client.post("/projects", json={"name": "Original"}, headers=headers).json()
+    path = "/projects/" + original["id"]
+    response = client.patch(path, json=data, headers=headers)
+    assert response.status_code == 422
+    assert response.json() == {"detail": "Invalid project input"}
+    assert response.headers["cache-control"] == "no-store"
+    assert client.get(path, headers=headers).json() == original
+
+
+@pytest.mark.parametrize("objective", [None, 12, "x" * 2001])
+def test_create_objective_validation(client, issuer, objective):
+    result = client.post(
+        "/projects", json={"name": "A", "objective": objective}, headers=bearer(issuer)
+    )
+    assert result.status_code == 422
+    assert result.json() == {"detail": "Invalid project input"}
+
+
+def test_patch_owner_isolation_and_authentication(client, issuer):
+    headers = bearer(issuer)
+    original = client.post("/projects", json={"name": "Private"}, headers=headers).json()
+    path = "/projects/" + original["id"]
+    other = bearer(issuer, uuid4())
+    for target in (path, "/projects/" + str(uuid4())):
+        response = client.patch(target, json={"name": "No"}, headers=other)
+        assert response.status_code == 404
+        assert response.json() == {"detail": "Project unavailable"}
+    for rejected in ({}, {"Authorization": "Bearer secret-token"}):
+        response = client.patch(path, json={"name": "No"}, headers=rejected)
+        assert response.status_code == 401
+        assert response.headers["www-authenticate"] == "Bearer"
+        assert response.headers["cache-control"] == "no-store"
+        assert "secret-token" not in response.text
+    assert client.get(path, headers=headers).json() == original
+
+
+@pytest.mark.parametrize("failure_event", ["statement", "commit"])
+def test_patch_database_failure_rolls_back_without_leaking(client, issuer, failure_event):
+    headers = bearer(issuer)
+    original = client.post("/projects", json={"name": "Original"}, headers=headers).json()
+    path = "/projects/" + original["id"]
+    engine = client.app.state.engine
+
+    def broken_statement(connection, cursor, statement, parameters, context, executemany):
+        if statement.lstrip().upper().startswith("UPDATE"):
+            raise OperationalError(statement, parameters, Exception("secret DSN SQL"))
+
+    def broken_commit(connection):
+        raise OperationalError("COMMIT", {}, Exception("secret DSN SQL"))
+
+    name, handler = (
+        ("before_cursor_execute", broken_statement)
+        if failure_event == "statement"
+        else ("commit", broken_commit)
+    )
+    event.listen(engine, name, handler)
+    try:
+        response = client.patch(path, json={"objective": "Changed"}, headers=headers)
+        assert response.status_code == 503
+        assert response.json() == {"detail": "Service temporarily unavailable"}
+        assert response.headers["cache-control"] == "no-store"
+    finally:
+        event.remove(engine, name, handler)
+    assert client.get(path, headers=headers).json() == original
+    assert client.patch(path, json={"objective": "Changed"}, headers=headers).status_code == 200
+
+
+def test_patch_cors_and_openapi(client):
+    response = client.options(
+        "/projects/" + str(uuid4()),
+        headers={
+            "Origin": "http://127.0.0.1:5173",
+            "Access-Control-Request-Method": "PATCH",
+            "Access-Control-Request-Headers": "authorization,content-type",
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-store"
+    api = client.get("/openapi.json").json()
+    operation = api["paths"]["/projects/{project_id}"]["patch"]
+    assert operation["security"] == [{"HTTPBearer": []}]
+    for status in ("200", "401", "404", "422", "503"):
+        assert status in operation["responses"]
+
+
+def test_project_search_is_literal_case_insensitive_and_filters_before_pagination(client, issuer):
+    headers = bearer(issuer)
+    names = ["Plan 100%", "Plan 100_", "Plan 100!", "ÁRVORE 🌱", "árvore segunda"]
+    for name in names:
+        assert client.post("/projects", json={"name": name}, headers=headers).status_code == 201
+    client.post("/projects", json={"name": "Plan 100%"}, headers=bearer(issuer, uuid4()))
+    for query, expected in [
+        ("  PLAN 100%  ", ["Plan 100%"]),
+        ("100_", ["Plan 100_"]),
+        ("100!", ["Plan 100!"]),
+        ("Árvore", ["árvore segunda", "ÁRVORE 🌱"]),
+    ]:
+        page = client.get("/projects", params={"q": query}, headers=headers).json()
+        assert [p["name"] for p in page["items"]] == expected
+        assert page["total"] == len(expected)
+    page = client.get(
+        "/projects", params={"q": "plan", "limit": 1, "offset": 1}, headers=headers
+    ).json()
+    assert page["total"] == 3 and page["items"][0]["name"] == "Plan 100_"
+    assert client.get("/projects", params={"q": "  "}, headers=headers).json()["total"] == 5
+    invalid = client.get("/projects", params={"q": "x" * 121}, headers=headers)
+    assert invalid.status_code == 422
+    assert invalid.json() == {"detail": "Invalid project input"}
+    assert invalid.headers["cache-control"] == "no-store"
+    assert (
+        client.get("/projects", params={"q": "  " + "x" * 120 + "  "}, headers=headers).status_code
+        == 200
+    )
+
+
+def test_patch_sql_mutation_has_owner_predicate_and_accepts_field_limits(client, issuer):
+    headers = bearer(issuer)
+    project = client.post("/projects", json={"name": "Original"}, headers=headers).json()
+    statements = []
+
+    def capture(connection, cursor, statement, parameters, context, executemany):
+        if statement.lstrip().upper().startswith("UPDATE"):
+            statements.append(statement)
+
+    engine = client.app.state.engine
+    event.listen(engine, "before_cursor_execute", capture)
+    try:
+        response = client.patch(
+            "/projects/" + project["id"],
+            headers=headers,
+            json={"name": " 🌱" * 60 + " ", "description": "a" * 2000, "objective": "🌱" * 2000},
+        )
+        assert response.status_code == 200
+        assert response.json()["name"] == (" 🌱" * 60).strip()
+        assert response.json()["objective"] == "🌱" * 2000
+    finally:
+        event.remove(engine, "before_cursor_execute", capture)
+    assert len(statements) == 1
+    where_clause = statements[0].upper().split("WHERE", 1)[1].split("RETURNING", 1)[0]
+    assert "OWNER_ID" in where_clause and "PROJECTS.ID" in where_clause
