@@ -12,8 +12,11 @@ def create_database_engine(settings: Settings) -> Engine:
         engine = create_engine(
             url,
             connect_args={"check_same_thread": False},
-            poolclass=StaticPool,
+            **({"poolclass": StaticPool} if url.endswith(":memory:") else {}),
             hide_parameters=True,
+        )
+        event.listen(
+            engine, "connect", lambda connection, _: connection.execute("PRAGMA foreign_keys=ON")
         )
         # SQLite's built-in lower() only folds ASCII; match Unicode name searches in tests.
         event.listen(
@@ -55,12 +58,19 @@ def migrate_schema(engine: Engine, schema: str) -> None:
         if not inspector.has_table("projects", schema=target):
             raise ValueError("Initialize a new database before migrating")
         columns = {column["name"] for column in inspector.get_columns("projects", schema=target)}
-        if "objective" in columns:
-            return
         preparer = connection.dialect.identifier_preparer
         table = preparer.quote("projects")
         if target:
             table = preparer.quote_schema(target) + "." + table
-        connection.execute(
-            text(f"ALTER TABLE {table} ADD COLUMN objective TEXT NOT NULL DEFAULT ''")
+        if "objective" not in columns:
+            connection.execute(
+                text(f"ALTER TABLE {table} ADD COLUMN objective TEXT NOT NULL DEFAULT ''")
+            )
+        Base.metadata.create_all(
+            connection,
+            tables=[
+                table
+                for table in Base.metadata.sorted_tables
+                if table.name in {"members", "invitations"}
+            ],
         )

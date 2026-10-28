@@ -30,7 +30,15 @@ def test_http_create_list_and_private_detail(client, issuer):
     response = client.post("/projects", json={"name": "  Projeto  "}, headers=headers)
     assert response.status_code == 201
     p = response.json()
-    assert set(p) == {"id", "owner_id", "name", "description", "objective", "created_at"}
+    assert set(p) == {
+        "id",
+        "owner_id",
+        "name",
+        "description",
+        "objective",
+        "created_at",
+        "permissions",
+    }
     assert p["objective"] == ""
     assert p["owner_id"] == str(issuer["owner"]) and p["name"] == "Projeto"
     page = client.get("/projects", headers=headers).json()
@@ -430,6 +438,13 @@ def test_patch_cors_and_openapi(client):
 
 
 def test_project_search_is_literal_case_insensitive_and_filters_before_pagination(client, issuer):
+    from datetime import UTC, datetime, timedelta
+    from itertools import count
+
+    ticks = count()
+    client.app.state.clock = lambda: (
+        datetime(2026, 10, 28, tzinfo=UTC) + timedelta(seconds=next(ticks))
+    )
     headers = bearer(issuer)
     names = ["Plan 100%", "Plan 100_", "Plan 100!", "ÁRVORE 🌱", "árvore segunda"]
     for name in names:

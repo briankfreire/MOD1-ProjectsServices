@@ -37,7 +37,7 @@ def current_owner(
 
 def project_service(request: Request) -> Iterator[ProjectsService]:
     with Session(request.app.state.engine, expire_on_commit=False) as session:
-        yield ProjectsService(ProjectRepository(session))
+        yield ProjectsService(ProjectRepository(session), clock=request.app.state.clock)
 
 
 Owner = Annotated[UUID, Depends(current_owner)]

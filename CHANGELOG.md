@@ -1,6 +1,17 @@
 # Changelog
 
-Versão candidata do serviço: `0.3.0`, definida em `pyproject.toml`. O serviço possui
+## 0.4.0 — candidato local, 2026-10-28
+
+### Added
+
+- Matriz fixa por projeto, múltiplos papéis, expiração do vínculo e consulta de acessos/membros/papéis.
+- Convites por código aleatório de uso único, hash SHA256, validade de sete dias e destinatário obrigatório.
+- Aceite/recusa e gestão serializados por projeto; proprietário protegido e DELETE exclusivo dele.
+- Lista/detalhe/edição autorizados por acesso atual, com permissions no Project e 403 para ação proibida.
+- Migração explícita/idempotente de members/invitations, sem DDL no startup ou acesso a outro schema.
+- Contrato canônico para Backlog 0.3.0; códigos não passam por URL/storage. Sem envio de e-mail.
+
+Versão candidata do serviço: `0.4.0`, definida em `pyproject.toml`. O serviço possui
 versão SemVer independente de identidade e frontend. A versão será publicada após
 revisão e integração; esta mudança não cria tag ou release.
 

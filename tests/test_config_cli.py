@@ -79,7 +79,7 @@ def test_cli_module_runs_init(tmp_path):
     assert result.returncode == 0
     engine = create_database_engine(Settings(database_url=url, _env_file=None))
     try:
-        assert inspect(engine).get_table_names() == ["projects"]
+        assert inspect(engine).get_table_names() == ["invitations", "members", "projects"]
     finally:
         engine.dispose()
 

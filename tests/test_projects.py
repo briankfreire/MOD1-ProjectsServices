@@ -99,7 +99,7 @@ def test_persists_after_engine_recreation(tmp_path):
     recreated = create_database_engine(settings)
     try:
         with Session(recreated) as session:
-            reloaded = ProjectRepository(session).get_owned(owner, original.id)
+            reloaded = ProjectsService(ProjectRepository(session)).get(owner, original.id)
             assert reloaded == original and reloaded.created_at.tzinfo == UTC
     finally:
         recreated.dispose()

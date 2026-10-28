@@ -1,4 +1,4 @@
-# Contrato de projetos — candidato 0.3.0
+# Contrato de projetos — candidato 0.4.0
 
 Projetos, Identidade e Backlog são serviços separados. Projetos valida JWT RS256
 pelo JWKS confiável configurado, usando os mesmos issuer/audience da Identidade.
@@ -9,12 +9,14 @@ O proprietário vem de `sub` do JWT; o cliente não escolhe `owner_id`.
 | Método | Rota | Sucesso |
 | --- | --- | --- |
 | POST | `/projects` | 201, Project |
-| GET | `/projects?q=&limit=20&offset=0` | 200, ProjectPage dos próprios projetos |
-| GET | `/projects/{project_id}` | 200, Project próprio |
-| PATCH | `/projects/{project_id}` | 200, Project próprio atualizado |
+| GET | `/projects?q=&limit=20&offset=0` | 200, ProjectPage dos projetos acessíveis |
+| GET | `/projects/{project_id}` | 200, Project acessível |
+| PATCH | `/projects/{project_id}` | 200, Project atualizado; exige project:update |
 | DELETE | `/projects/{project_id}` | 204, sem corpo |
 
-Project contém `id`, `owner_id`, `name`, `description`, `objective`, `created_at` UTC.
+Project contém `id`, `owner_id`, `name`, `description`, `objective`, `created_at` UTC
+e `permissions` do chamador. Membros, papéis, expiração e convites por código:
+[collaboration.md](collaboration.md).
 ProjectPage contém `items`, `total`, `limit`, `offset`. Toda rota exige
 `Authorization: Bearer <JWT>` e responde com `Cache-Control: no-store`, inclusive
 nos erros. CORS permite PATCH e DELETE somente para as origens previamente configuradas;
@@ -27,13 +29,15 @@ default `""`). PATCH aceita um subconjunto não vazio desses mesmos três campos
 omitir preserva o valor existente, e strings vazias limpam descrição/objetivo.
 Null, extras, tipos incorretos e campos imutáveis retornam 422 sanitizado.
 `id`, `owner_id` e `created_at` permanecem iguais. O owner vem somente do JWT e
-integra o WHERE da própria instrução UPDATE, com id; commit precede a resposta 200.
-Projeto ausente/alheio recebe o mesmo 404 `{"detail":"Project unavailable"}`.
+integra o WHERE da própria instrução UPDATE quando ele edita; membros com
+`project:update` são revalidados sob lock do projeto até o commit, antes do 200.
+Projeto ausente/inacessível recebe o mesmo 404 `{"detail":"Project unavailable"}`;
+membro com leitura mas sem a ação recebe 403 `Insufficient project permissions`.
 401, 422 e 503 seguem os corpos seguros da tabela DELETE abaixo.
 
 GET `/projects` aceita `q` string aparada até 120 caracteres, default vazio.
 A busca é uma substring literal no nome, sem distinção de caixa: `%`, `_` e `/`
-não viram curingas. Não pesquisa descrição/objetivo. Proprietário e busca filtram
+não viram curingas. Não pesquisa descrição/objetivo. Acesso e busca filtram
 antes do total e da paginação; a ordem continua created_at DESC, id DESC.
 Status/etiquetas não fazem parte desse filtro.
 
@@ -52,6 +56,7 @@ da permissão runtime do banco. Nenhum corpo de requisição é necessário.
 | --- | --- | --- |
 | 204 | vazio, sem Content-Type JSON | Remover da lista e limpar seleção/detalhe; não chamar `response.json()` |
 | 401 | `{"detail":"Authentication required"}` | Solicitar login; inclui `WWW-Authenticate: Bearer` |
+| 403 | `{"detail":"Insufficient project permissions"}` | Membro sem permissão de excluir; manter sessão |
 | 404 | `{"detail":"Project unavailable"}` | Projeto ausente, alheio ou já excluído; atualizar a lista, sem revelar existência |
 | 422 | `{"detail":"Invalid project input"}` | Corrigir UUID; não repetir a mesma entrada |
 | 503 | `{"detail":"Service temporarily unavailable"}` | Banco ou chaves indisponíveis; consultar estado antes de decidir repetir |
@@ -65,12 +70,13 @@ em falha de rede/503, mantenha a ação pendente até conseguir reconciliar.
 
 ## Backlog e vínculos associados
 
-**Não há exclusão em cascata entre serviços.** DELETE remove somente a linha
-de `projects.projects`. Não consulta nem modifica schemas de outros módulos.
+**Não há exclusão em cascata entre serviços.** DELETE remove o projeto e, por FK
+no mesmo schema, seus membros e convites. Não consulta nem modifica schemas de
+outros módulos.
 
 - **Backlog:** não é necessário apagar histórias antes. Elas permanecem
   armazenadas, mas GET/listagem/criação/PATCH subsequentes recebem 404 porque
-  o Backlog consulta GET do projeto com o mesmo Bearer em cada operação.
+  o Backlog consulta GET `/projects/{project_id}/access` com o mesmo Bearer em cada operação.
   Essa retenção não oferece uma função de restauração ou limpeza automática.
 - **Concorrência:** uma operação de backlog cuja autorização ocorreu antes da
   exclusão pode terminar e gravar sua história. Não há lock ou transação
@@ -99,8 +105,9 @@ coordenação entre os responsáveis. A interface deve apresentar a política at
 
 ## Banco e implantação
 
-A versão 0.3.0 exige migração explícita aditiva de `objective` em bancos antigos.
-A role runtime precisa de UPDATE e DELETE somente em sua tabela, além de
-SELECT/INSERT e USAGE já existentes. Procedimento do operador em
+A versão 0.4.0 exige migração explícita de `objective`, members e invitations
+em bancos antigos. A role runtime precisa das permissões nas três tabelas próprias
+documentadas em [collaboration.md](collaboration.md), além das já existentes.
+Procedimento do operador em
 [database-neon.md](database-neon.md). Sem UPDATE, PATCH retorna 503; readiness
 verifica leitura e não comprova permissões de escrita ou versão do schema.

@@ -1,5 +1,19 @@
 # Evidências do serviço de projetos
 
+## Colaboração/perfil 0.4.0 — 28/10/2026, somente local
+
+- Suíte completa com PostgreSQL 16.15 descartável em loopback, UTF-8/ICU und:
+  **137 testes passaram, nenhum skip**, em 79,51 s.
+- Ruff check/formato, mypy, lock e wheel/sdist verificados no candidato.
+- Frontend 0.4.0: **96 testes passaram sem skips**, com três APIs reais e bancos/chaves
+  temporários. Teste ampliado de duas contas também passou: convite, perfil,
+  Desenvolvedor/status, promoção a PO e remoção/reutilização negada do código.
+- Revisão própria de isolamento, contratos, expiração e concorrência. A revisão
+  independente deste lote ficou indisponível por limite de uso dos auxiliares;
+  a revisão independente histórica abaixo cobre somente o lote anterior.
+- PostgreSQL encerrado e dados temporários removidos. Sem main/push/deploy/tag,
+  sem acesso ao Neon ou alteração de grants/configuração remota.
+
 ## Conferência integrada do gerenciamento 0.3.0 — 28/10/2026
 
 - Suíte completa com PostgreSQL 16.15 descartável e Backlog novo: **114 passaram,

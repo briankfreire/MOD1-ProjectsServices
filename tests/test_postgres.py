@@ -60,7 +60,9 @@ def test_local_postgres_persistence_and_owner_queries():
             assert page.total == 1 and page.items[0].id == p.id
             assert repo.get_owned(b, p.id) is None
             assert repo.delete_owned(b, p.id) is False
-            assert repo.get_owned(a, p.id) == p
+            assert repo.get_owned(a, p.id).model_dump(exclude={"permissions"}) == p.model_dump(
+                exclude={"permissions"}
+            )
             assert repo.delete_owned(a, p.id) is True
         engine.dispose()
         with Session(engine) as session:

@@ -28,6 +28,12 @@ def test_deleted_project_denies_backlog_operations_and_retains_stories(
         pytest.skip("BACKLOG_SERVICE_PATH not configured; separate Backlog checkout required")
     source = Path(checkout).resolve() / "src"
     assert (source / "backlog_service" / "app.py").is_file(), "Invalid Backlog checkout"
+    # The separately packaged service derives OpenAPI version from its installed metadata.
+    environment = Path(checkout).resolve() / ".venv"
+    candidates = [environment / "Lib/site-packages", *environment.glob("lib/python*/site-packages")]
+    for packages in candidates:
+        if packages.is_dir():
+            monkeypatch.syspath_prepend(str(packages))
     monkeypatch.syspath_prepend(str(source))
     backlog_app = importlib.import_module("backlog_service.app")
     backlog_config = importlib.import_module("backlog_service.config")

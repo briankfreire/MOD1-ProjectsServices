@@ -1,5 +1,13 @@
 # Permissões do banco de projetos
 
+## Atualização para 0.4.0
+
+`migrate` mantém a preparação de objective abaixo e cria members/invitations
+ausentes no schema próprio. Conferir [collaboration.md](collaboration.md) para
+grants específicos, matriz e contrato. Executar apenas com administração autorizada.
+Não houve migração/grant remoto. Em rollback, preservar tabelas/dados; uma versão
+antiga não apresenta projetos compartilhados e Backlog 0.3.0 exige o novo /access.
+
 Schema padrão: `projects`; tabela: `projects.projects`; role runtime:
 `mod1_projects_runtime`. O serviço só acessa seu schema. Use a conexão runtime
 na API, com TLS verify-full e CA confiável para PostgreSQL remoto.
@@ -14,7 +22,7 @@ serviço. Para banco novo, executar `init`; para tabela anterior, executar:
 uv run --locked --no-build-isolation python -m projects_service.cli migrate
 ```
 
-O comando acrescenta somente `objective TEXT NOT NULL DEFAULT ''` à tabela de
+Na etapa de objective, o comando acrescenta `objective TEXT NOT NULL DEFAULT ''` à tabela de
 projetos existente. Preserva IDs, owners, nomes, descrições e datas; linhas antigas
 recebem objetivo vazio. É idempotente e pode ser repetido. Funciona em PostgreSQL
 e SQLite isolado. Se não há tabela, falha com erro seguro: usar `init` para banco novo.

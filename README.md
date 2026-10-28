@@ -1,6 +1,14 @@
 # ProjectServices
 
-Versão candidata SemVer: `0.3.0`, definida em `pyproject.toml` e refletida no OpenAPI.
+## Colaboração — candidato 0.4.0
+
+Papéis fixos PO, PM/Scrum Master e Desenvolvedor, múltiplos papéis por pessoa,
+expiração de vínculo e convites por código vinculados ao UUID destinatário.
+Lista/detalhe incluem projetos acessíveis e permissões do chamador; exclusão
+permanece exclusiva do proprietário. [Contrato, matriz e migração](docs/collaboration.md).
+Não há equipes independentes nem papéis personalizados nesta versão.
+
+Versão candidata SemVer: `0.4.0`, definida em `pyproject.toml` e refletida no OpenAPI.
 Mudanças registradas em [CHANGELOG.md](CHANGELOG.md).
 
 Serviço independente para criar, listar, buscar, consultar, editar e excluir projetos do usuário autenticado.
@@ -19,7 +27,8 @@ uv run --no-build-isolation python -m projects_service.cli init
 
 O startup da API não prepara o banco. Schema e credencial de identidade permanecem separados.
 Instalações anteriores precisam executar explicitamente a migração aditiva de `objective`
-e conceder `UPDATE` somente em `projects.projects`; preserve também `DELETE`.
+e criar members/invitations com `migrate`; conferir os grants próprios em
+[collaboration.md](docs/collaboration.md), preservando UPDATE/DELETE em projects.projects.
 Consulte [database-neon.md](docs/database-neon.md). `init` não migra tabelas existentes.
 SQLite é usado apenas pela suíte isolada; não é necessário para a demonstração no Neon.
 
@@ -52,10 +61,10 @@ datas e UUIDs e aplica o responsável a cada consulta no servidor.
 
 | Rota | Resultado |
 | --- | --- |
-| `POST /projects` | Nome/descrição/objetivo; 201 com id, owner_id, name, description, objective, created_at |
-| `GET /projects?q=&limit=20&offset=0` | Busca literal no nome; items, total, limit, offset dos próprios projetos |
-| `GET /projects/{id}` | Detalhe próprio; outro responsável e id ausente retornam 404 |
-| `PATCH /projects/{id}` | Edição parcial própria de name, description e objective; 200 Project |
+| `POST /projects` | Nome/descrição/objetivo; 201 com id, owner_id, name, description, objective, created_at, permissions |
+| `GET /projects?q=&limit=20&offset=0` | Busca literal no nome; items, total, limit, offset dos projetos acessíveis |
+| `GET /projects/{id}` | Detalhe acessível; sem vínculo e id ausente retornam 404 |
+| `PATCH /projects/{id}` | Edição parcial de name, description e objective com project:update; 200 Project |
 | `DELETE /projects/{project_id}` | Exclui projeto próprio; 204 sem corpo, ausente/alheio retorna 404 |
 | `GET /health/live` | Aplicação viva, independente do banco/JWKS |
 | `GET /health/ready` | Acesso à tabela própria; 200 ou 503 |
@@ -65,7 +74,7 @@ identidade inválida, 401; banco/chaves necessárias indisponíveis, 503.
 Nome aparado de 1–120 caracteres; descrição e objetivo opcionais até 2000, default vazio.
 PATCH exige ao menos um campo editável, sem null/extras; id, owner e data são imutáveis.
 Busca `q` aparada até 120 caracteres, sem distinção de caixa, com `%`/`_` literais;
-filtro e proprietário são aplicados antes de total/paginação.
+filtro e acesso são aplicados antes de total/paginação.
 Desativar conta bloqueia login no emissor, mas JWT emitido pode valer até expirar.
 Logout limpa a sessão do navegador. Este recorte não inclui equipes ou revogação.
 
@@ -74,7 +83,7 @@ Logout limpa a sessão do navegador. Este recorte não inclui equipes ou revoga�
 O DELETE usa o mesmo Bearer, com proprietário derivado do JWT. Remove somente o
 projeto: histórias são preservadas no Backlog e operações posteriores nesse projeto
 retornam 404. Vínculos do GitHub Sync são responsabilidade do Módulo 2; repositórios,
-issues e PRs no GitHub não são apagados. Não há cascata nem restauração pela API.
+issues e PRs no GitHub não são apagados. Membros/convites próprios são removidos por FK; não há cascata entre serviços nem restauração pela API.
 
 Contrato completo, erros, confirmação e reconciliação após timeout:
 [integration.md](docs/integration.md). O frontend deste repositório é separado;

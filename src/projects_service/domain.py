@@ -47,6 +47,7 @@ class Project(BaseModel):
     description: str
     objective: str = ""
     created_at: datetime
+    permissions: list[str] = Field(default_factory=list)
 
 
 class ProjectPage(BaseModel):

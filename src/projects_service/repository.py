@@ -26,7 +26,7 @@ class ProjectRepository:
         self.session = session
 
     def add(self, project: Project) -> Project:
-        record = ProjectRecord(**project.model_dump())
+        record = ProjectRecord(**project.model_dump(exclude={"permissions"}))
         try:
             self.session.add(record)
             self.session.commit()
