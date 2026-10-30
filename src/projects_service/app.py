@@ -1,5 +1,6 @@
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
+from importlib.metadata import version
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -7,10 +8,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from sqlalchemy.exc import SQLAlchemyError
 
+from projects_service.access_domain import AccessError
+from projects_service.access_routes import router as access_router
 from projects_service.config import Settings
 from projects_service.database import create_database_engine
 from projects_service.routes import router
 from projects_service.security import TokenVerifier
+from projects_service.service import utc_now
 
 
 def create_app(
@@ -24,13 +28,16 @@ def create_app(
         yield
         engine.dispose()
 
-    app = FastAPI(title="Módulo 1 — Projetos", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(
+        title="Módulo 1 — Projetos", version=version("projects-service"), lifespan=lifespan
+    )
     app.state.engine = engine
     app.state.verifier = verifier or TokenVerifier(settings)
+    app.state.clock = utc_now
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
-        allow_methods=["GET", "POST"],
+        allow_methods=["GET", "POST", "PATCH", "DELETE"],
         allow_headers=["Authorization", "Content-Type"],
     )
 
@@ -39,7 +46,11 @@ def create_app(
         request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
         response = await call_next(request)
-        if request.url.path == "/projects" or request.url.path.startswith("/projects/"):
+        if (
+            request.url.path == "/projects"
+            or request.url.path.startswith("/projects/")
+            or request.url.path.startswith("/invitations/")
+        ):
             response.headers["Cache-Control"] = "no-store"
         return response
 
@@ -51,5 +62,10 @@ def create_app(
     async def database_unavailable(request: Request, error: SQLAlchemyError) -> JSONResponse:
         return JSONResponse(status_code=503, content={"detail": "Service temporarily unavailable"})
 
+    @app.exception_handler(AccessError)
+    async def access_error(request: Request, error: AccessError) -> JSONResponse:
+        return JSONResponse(status_code=error.status, content={"detail": error.detail})
+
     app.include_router(router)
+    app.include_router(access_router)
     return app

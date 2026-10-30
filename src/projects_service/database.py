@@ -1,4 +1,4 @@
-from sqlalchemy import Engine, create_engine
+from sqlalchemy import Engine, create_engine, event, inspect, text
 from sqlalchemy.pool import StaticPool
 from sqlalchemy.schema import CreateSchema
 
@@ -12,8 +12,22 @@ def create_database_engine(settings: Settings) -> Engine:
         engine = create_engine(
             url,
             connect_args={"check_same_thread": False},
-            poolclass=StaticPool,
+            **({"poolclass": StaticPool} if url.endswith(":memory:") else {}),
             hide_parameters=True,
+        )
+        event.listen(
+            engine, "connect", lambda connection, _: connection.execute("PRAGMA foreign_keys=ON")
+        )
+        # SQLite's built-in lower() only folds ASCII; match Unicode name searches in tests.
+        event.listen(
+            engine,
+            "connect",
+            lambda connection, _: connection.create_function(
+                "lower",
+                1,
+                lambda value: value.lower() if value is not None else None,
+                deterministic=True,
+            ),
         )
         target = None
     else:
@@ -34,3 +48,29 @@ def init_schema(engine: Engine, schema: str) -> None:
         with engine.begin() as connection:
             connection.execute(CreateSchema(schema, if_not_exists=True))
     Base.metadata.create_all(engine)
+
+
+def migrate_schema(engine: Engine, schema: str) -> None:
+    """Explicit, additive migration; init/startup never upgrade existing tables."""
+    target = schema if engine.dialect.name == "postgresql" else None
+    with engine.begin() as connection:
+        inspector = inspect(connection)
+        if not inspector.has_table("projects", schema=target):
+            raise ValueError("Initialize a new database before migrating")
+        columns = {column["name"] for column in inspector.get_columns("projects", schema=target)}
+        preparer = connection.dialect.identifier_preparer
+        table = preparer.quote("projects")
+        if target:
+            table = preparer.quote_schema(target) + "." + table
+        if "objective" not in columns:
+            connection.execute(
+                text(f"ALTER TABLE {table} ADD COLUMN objective TEXT NOT NULL DEFAULT ''")
+            )
+        Base.metadata.create_all(
+            connection,
+            tables=[
+                table
+                for table in Base.metadata.sorted_tables
+                if table.name in {"members", "invitations"}
+            ],
+        )

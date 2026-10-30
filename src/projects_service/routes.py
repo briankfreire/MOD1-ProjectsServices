@@ -2,13 +2,14 @@ from collections.abc import Iterator
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from pydantic import BeforeValidator
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from projects_service.domain import Project, ProjectDraft, ProjectPage
+from projects_service.domain import Project, ProjectDraft, ProjectPage, ProjectPatch
 from projects_service.models import ProjectRecord
 from projects_service.repository import ProjectRepository
 from projects_service.security import AuthenticationRejected, SigningKeysUnavailable
@@ -36,7 +37,7 @@ def current_owner(
 
 def project_service(request: Request) -> Iterator[ProjectsService]:
     with Session(request.app.state.engine, expire_on_commit=False) as session:
-        yield ProjectsService(ProjectRepository(session))
+        yield ProjectsService(ProjectRepository(session), clock=request.app.state.clock)
 
 
 Owner = Annotated[UUID, Depends(current_owner)]
@@ -54,8 +55,9 @@ def list_projects(
     service: Service,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     offset: Annotated[int, Query(ge=0)] = 0,
+    q: Annotated[str, Query(max_length=120), BeforeValidator(str.strip)] = "",
 ) -> ProjectPage:
-    return service.list(owner, limit=limit, offset=offset)
+    return service.list(owner, limit=limit, offset=offset, q=q)
 
 
 @router.get("/projects/{project_id}", response_model=Project)
@@ -64,6 +66,45 @@ def get_project(project_id: UUID, owner: Owner, service: Service) -> Project:
     if project is None:
         raise HTTPException(404, "Project unavailable")
     return project
+
+
+@router.patch(
+    "/projects/{project_id}",
+    response_model=Project,
+    responses={
+        401: {"description": "Authentication required"},
+        404: {"description": "Project unavailable (missing or not owned by the caller)"},
+        422: {"description": "Invalid project input"},
+        503: {"description": "Service temporarily unavailable"},
+    },
+)
+def patch_project(project_id: UUID, patch: ProjectPatch, owner: Owner, service: Service) -> Project:
+    project = service.patch(owner, project_id, patch)
+    if project is None:
+        raise HTTPException(404, "Project unavailable")
+    return project
+
+
+@router.delete(
+    "/projects/{project_id}",
+    status_code=204,
+    response_class=Response,
+    responses={
+        401: {"description": "Authentication required"},
+        404: {"description": "Project unavailable (missing or not owned by the caller)"},
+        422: {"description": "Invalid project input"},
+        503: {"description": "Service temporarily unavailable"},
+    },
+    description=(
+        "Deletes only the caller's project. Backlog stories are retained but subsequent "
+        "backlog operations are denied. External links belong to their respective services; "
+        "this operation does not delete GitHub resources. Repeating a deletion returns 404."
+    ),
+)
+def delete_project(project_id: UUID, owner: Owner, service: Service) -> Response:
+    if not service.delete(owner, project_id):
+        raise HTTPException(404, "Project unavailable")
+    return Response(status_code=204)
 
 
 @router.get("/health/live")

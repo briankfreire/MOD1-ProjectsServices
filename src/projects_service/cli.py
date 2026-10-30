@@ -6,18 +6,21 @@ from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 
 from projects_service.config import Settings
-from projects_service.database import create_database_engine, init_schema
+from projects_service.database import create_database_engine, init_schema, migrate_schema
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Preparar explicitamente o schema de projetos")
-    parser.add_argument("command", choices=["init"])
-    parser.parse_args(argv)
+    parser.add_argument("command", choices=["init", "migrate"])
+    args = parser.parse_args(argv)
     try:
         settings = Settings()
         engine = create_database_engine(settings)
         try:
-            init_schema(engine, settings.database_schema)
+            if args.command == "init":
+                init_schema(engine, settings.database_schema)
+            else:
+                migrate_schema(engine, settings.database_schema)
         finally:
             engine.dispose()
         print("Schema de projetos preparado.")
