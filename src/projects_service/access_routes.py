@@ -13,7 +13,7 @@ from projects_service.access_domain import (
     MembershipPatch,
     RolePage,
 )
-from projects_service.routes import Owner, Service
+from projects_service.dependencies import Owner, Service
 
 router = APIRouter()
 

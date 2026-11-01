@@ -7,9 +7,8 @@ from sqlalchemy.orm import Session
 
 from projects_service.config import Settings
 from projects_service.database import create_database_engine, init_schema
+from projects_service.dependencies import build_projects_service
 from projects_service.domain import ProjectDraft
-from projects_service.repository import ProjectRepository
-from projects_service.service import ProjectsService
 
 
 @pytest.fixture
@@ -25,7 +24,7 @@ def test_create_assigns_owner_uuid_and_utc_time(engine):
     owner = uuid4()
     now = datetime(2026, 10, 11, 12, tzinfo=UTC)
     with Session(engine) as session:
-        service = ProjectsService(ProjectRepository(session), clock=lambda: now)
+        service = build_projects_service(session, clock=lambda: now)
         p = service.create(owner, ProjectDraft(name="  Projeto  "))
         assert p.owner_id == owner and p.name == "Projeto"
         assert isinstance(p.id, UUID) and p.id != owner and p.created_at == now
@@ -33,7 +32,7 @@ def test_create_assigns_owner_uuid_and_utc_time(engine):
 
 def test_defaults_and_repeated_names(engine):
     with Session(engine) as session:
-        service = ProjectsService(ProjectRepository(session))
+        service = build_projects_service(session)
         owner = uuid4()
         first = service.create(owner, ProjectDraft(name="Repetido"))
         second = service.create(owner, ProjectDraft(name="Repetido"))
@@ -66,8 +65,8 @@ def test_owner_isolation_and_stable_pagination(engine):
     owner_a, owner_b = uuid4(), uuid4()
     ids = iter(UUID(int=n) for n in (1, 3, 2, 4))
     with Session(engine) as session:
-        service = ProjectsService(
-            ProjectRepository(session),
+        service = build_projects_service(
+            session,
             clock=lambda: datetime(2026, 10, 11, tzinfo=UTC),
             id_factory=lambda: next(ids),
         )
@@ -85,7 +84,7 @@ def test_owner_isolation_and_stable_pagination(engine):
 @pytest.mark.parametrize("limit,offset", [(0, 0), (101, 0), (20, -1)])
 def test_invalid_pagination(engine, limit, offset):
     with Session(engine) as session, pytest.raises(ValueError):
-        ProjectsService(ProjectRepository(session)).list(uuid4(), limit=limit, offset=offset)
+        build_projects_service(session).list(uuid4(), limit=limit, offset=offset)
 
 
 def test_persists_after_engine_recreation(tmp_path):
@@ -94,12 +93,12 @@ def test_persists_after_engine_recreation(tmp_path):
     engine = create_database_engine(settings)
     init_schema(engine, settings.database_schema)
     with Session(engine) as session:
-        original = ProjectsService(ProjectRepository(session)).create(owner, ProjectDraft(name="A"))
+        original = build_projects_service(session).create(owner, ProjectDraft(name="A"))
     engine.dispose()
     recreated = create_database_engine(settings)
     try:
         with Session(recreated) as session:
-            reloaded = ProjectsService(ProjectRepository(session)).get(owner, original.id)
+            reloaded = build_projects_service(session).get(owner, original.id)
             assert reloaded == original and reloaded.created_at.tzinfo == UTC
     finally:
         recreated.dispose()
@@ -111,11 +110,12 @@ def test_deletion_persists_after_engine_recreation(tmp_path):
     engine = create_database_engine(settings)
     init_schema(engine, settings.database_schema)
     with Session(engine) as session:
-        service = ProjectsService(ProjectRepository(session))
+        service = build_projects_service(session)
         project = service.create(owner, ProjectDraft(name="Remove"))
         kept = service.create(owner, ProjectDraft(name="Keep"))
         assert service.delete(other, project.id) is False
         assert service.get(owner, project.id) == project
+        service.collaboration.backlog_summary = lambda pid: {"total": 0}
         assert service.delete(owner, project.id) is True
         assert service.delete(owner, project.id) is False
     engine.dispose()
@@ -123,7 +123,7 @@ def test_deletion_persists_after_engine_recreation(tmp_path):
     recreated = create_database_engine(settings)
     try:
         with Session(recreated) as session:
-            service = ProjectsService(ProjectRepository(session))
+            service = build_projects_service(session)
             assert service.get(owner, project.id) is None
             assert service.list(owner).items == [kept]
             assert service.list(owner).total == 1

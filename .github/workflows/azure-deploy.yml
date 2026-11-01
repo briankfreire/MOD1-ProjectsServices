@@ -93,11 +93,17 @@ jobs:
         if: github.event_name == 'push' || inputs.deploy_revision
         env:
           IMAGE_REFERENCE: ${{ steps.image.outputs.reference }}
+          AUTH_API_URL: ${{ vars.AUTH_API_URL }}
+          BACKLOG_API_URL: ${{ vars.BACKLOG_API_URL }}
         shell: bash
         run: |
           set -euo pipefail
           az extension add --name containerapp --upgrade --only-show-errors
-          revision=$(az containerapp update --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" --image "$IMAGE_REFERENCE" --query properties.latestRevisionName --output tsv)
+          [[ "$AUTH_API_URL" =~ ^https://[a-z0-9.-]+$ && "$BACKLOG_API_URL" =~ ^https://[a-z0-9.-]+$ ]]
+          revision=$(az containerapp update --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
+            --image "$IMAGE_REFERENCE" --set-env-vars \
+            "AUTH_API_BASE_URL=$AUTH_API_URL" "BACKLOG_API_BASE_URL=$BACKLOG_API_URL" \
+            "AUTH_SESSION_CHECK_ENABLED=true" --query properties.latestRevisionName --output tsv)
           host=$(az containerapp show --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" --query properties.configuration.ingress.fqdn --output tsv)
           [[ "$host" =~ ^[a-z0-9.-]+\.azurecontainerapps\.io$ ]]
           for attempt in $(seq 1 60); do

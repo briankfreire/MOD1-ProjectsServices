@@ -1,4 +1,72 @@
+# Contrato de exclusão para o Módulo 2 — 31/10/2026
+
+O teste do OpenAPI reproduziu a falta do schema de erro antes da correção e
+passou depois. Agora verifica Bearer, ausência de corpo na requisição e no
+sucesso 204, além dos erros 401/403/404/409/422/503 com `detail` textual.
+
+`python -m pytest tests/test_api.py tests/test_advanced.py tests/test_rbac.py -q --tb=short`:
+**106 passaram e 1 foi pulado**, em 67,32 s. O caso pulado exige
+`TEST_DATABASE_URL` em PostgreSQL loopback, não configurado nesta execução.
+As fixtures usam SQLite temporário e chaves/serviços controlados; não houve
+DELETE contra o banco persistente local ou qualquer banco remoto.
+Ruff, formato dos dois arquivos Python alterados e mypy (24 módulos) passaram.
+
+Após reiniciar somente o processo local de Projetos, a leitura de
+`http://127.0.0.1:8001/openapi.json` confirmou o contrato corrigido. As três APIs
+locais responderam readiness 200 e o frontend respondeu 200. Os dados de Projetos
+foram preservados com backup. Publicação, disponibilidade externa e a integração
+do GitHub Sync não foram verificadas nesta etapa.
+
+Guia do consumidor: [module2-project-deletion.md](module2-project-deletion.md).
+
+# Validação final das US locais — 31/10/2026
+
+`python -m pytest -q --tb=short`, com `TEST_DATABASE_URL` em PostgreSQL 17
+descartável/loopback e `BACKLOG_SERVICE_PATH` no checkout local:
+**212 testes passaram, nenhum skip**, em 113,54 s.
+Ruff, formato (40 arquivos), mypy (24 módulos), lock e build foram aprovados.
+
+Inclui todos os tipos de recomendação, notificações por destinatário e replay,
+preservação de concessões/prazos legados, liberação de capacidade após
+conclusão/revogação, migrações e callback HTTP concorrente com pool limitado.
+A integração opt-in verifica a política atual: projeto com backlog não é
+excluído, o congelamento é desfeito e continua editável; cadastro vazio pode ser
+excluído e o Backlog passa a recusá-lo, preservando o histórico do outro projeto.
+
+A observação de atividade tem regressões para legado desconhecido, janela
+completa, uso recente, alteração de concessão, erro de registro, validação
+estrita e corrida entre uso autorizado e revogação, em SQLite e PostgreSQL.
+Snapshots externos são coletados antes do writer; callbacks reais não bloqueiam
+criação/aprovação. Uma escrita do Backlog intercalada invalida o rascunho mesmo
+quando seu lease já foi liberado. Simples leitura não impede exclusão segura.
+
+Múltiplas rodadas RED/GREEN reproduziram os defeitos antes das correções. Testes
+controlados não provam entrega SMTP, qualidade de um provedor de IA real,
+recuperação real de processos após crash ou disponibilidade em produção.
+
+## Histórico das validações anteriores
+
 # Evidências do serviço de projetos
+
+## Separação multicamadas — 30/10/2026, somente local
+
+- Baseline antes da extração: **133 passed, 4 skipped**, em 63,38 s. Ruff,
+  formato, mypy e build wheel/sdist aprovados.
+- RED dos novos testes: **3 failed, 1 passed**. Foram detectados SQL/ORM/sessão
+  na aplicação, persistência nas rotas e retorno de `ProjectRecord` pelo
+  repositório. Após a extração, as fronteiras passam com snapshots de domínio.
+- Verificação final: **141 passed, 4 skipped**. Inclui falhas sintéticas de
+  INSERT/commit na aceitação de convite e commit na alteração/remoção de vínculo:
+  convite e permissões anteriores são preservados e a operação pode ser repetida.
+- `ruff check .`, `ruff format --check .`, `mypy src/projects_service`,
+  `uv lock --check`, `uv build --no-build-isolation` e `git diff --check` aprovados.
+  Wheel/sdist inspecionados sem credenciais ou artefatos locais de instruções/planos.
+- Os quatro skips são três cenários PostgreSQL (`TEST_DATABASE_URL` ausente) e
+  a regressão HTTP separada com Backlog (`BACKLOG_SERVICE_PATH` ausente). Esta
+  rodada usa somente SQLite sintético local e não comprova PostgreSQL ou integração
+  completa dos serviços. A rodada coordenada será registrada separadamente.
+- Sem acesso ao Neon, mudanças de schema/contrato, push, merge ou deploy.
+  [Arquitetura e limites](architecture.md) descrevem os componentes implementados.
 
 ## Colaboração/perfil 0.4.0 — 28/10/2026, somente local
 
@@ -176,3 +244,21 @@ sessão do navegador. Chaves privadas pertencem exclusivamente à autenticação
 
 Credenciais, JWTs e evidências operacionais com contas sintéticas ficam em arquivos
 ignorados. Nenhum teste removeu dados/schemas do Neon ou alterou identidade.
+
+## Integração coordenada das camadas — 30/10/2026
+
+- Revisão independente das mudanças de Identidade, Projetos, Backlog e Frontend
+  não encontrou regressão funcional ou de segurança nos caminhos inspecionados.
+  A lacuna de testes sem DOM do frontend foi corrigida com Worker e verificação
+  negativa das fronteiras; a suíte final de navegador passou 124 testes sem skips.
+- A suíte usa os três backends reais refatorados, SQLite/RSA temporários e os
+  caminhos AUTH_BACKEND_PATH, PROJECTS_BACKEND_PATH e BACKLOG_BACKEND_PATH.
+  Inclui login, perfil, projetos, backlog, convite, promoção de papel e remoção.
+- O teste HTTP específico Projetos→Backlog passou com BACKLOG_SERVICE_PATH
+  configurado. Não se presume teste de PostgreSQL a partir desse resultado.
+- O ambiente local persistente foi reiniciado com os mesmos bancos e chave:
+  readiness 200 nas três APIs, CORS 127.0.0.1:5173, login da conta de teste
+  preservada e consulta de projetos 200 pelo navegador, sem erro JavaScript.
+- Nenhum banco remoto, grant, configuração Azure, deploy ou dado de produção
+  foi alterado. A integração PostgreSQL opt-in continua pendente nesta etapa.
+- Componentes e limites das camadas estão em [architecture.md](architecture.md).

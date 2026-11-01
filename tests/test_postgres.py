@@ -9,9 +9,9 @@ from sqlalchemy.schema import CreateSchema, DropSchema
 
 from projects_service.config import Settings
 from projects_service.database import create_database_engine, init_schema, migrate_schema
+from projects_service.dependencies import build_projects_service
 from projects_service.domain import ProjectDraft, ProjectPatch
 from projects_service.repository import ProjectRepository
-from projects_service.service import ProjectsService
 
 
 def require_local(url):
@@ -50,7 +50,7 @@ def test_local_postgres_persistence_and_owner_queries():
     try:
         init_schema(engine, schema)
         with Session(engine) as session:
-            service = ProjectsService(ProjectRepository(session))
+            service = build_projects_service(session)
             p = service.create(a, ProjectDraft(name="A"))
             service.create(b, ProjectDraft(name="B"))
         engine.dispose()
@@ -111,7 +111,7 @@ def test_local_postgres_old_schema_migrates_twice_and_patch_search_persist():
         migrate_schema(engine, schema)
         migrate_schema(engine, schema)
         with Session(engine) as session:
-            service = ProjectsService(ProjectRepository(session))
+            service = build_projects_service(session)
             original = service.get(owner, project_id)
             assert original.name == "Old 100%" and original.objective == ""
             assert service.patch(other, project_id, ProjectPatch(name="No")) is None
@@ -121,7 +121,7 @@ def test_local_postgres_old_schema_migrates_twice_and_patch_search_persist():
             service.create(other, ProjectDraft(name="Old 100%"))
         engine.dispose()
         with Session(engine) as session:
-            service = ProjectsService(ProjectRepository(session))
+            service = build_projects_service(session)
             page = service.list(owner, q="  OLD 100%  ", limit=1)
             assert page.total == 1 and page.items == [updated]
             assert service.list(owner, q="100_", limit=1).total == 1

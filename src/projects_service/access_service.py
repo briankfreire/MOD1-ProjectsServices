@@ -1,10 +1,11 @@
+from __future__ import annotations
+
+import builtins
 import secrets
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from hashlib import sha256
 from uuid import UUID, uuid4
-
-from sqlalchemy import func, select
 
 from projects_service.access_domain import (
     OWNER,
@@ -12,6 +13,7 @@ from projects_service.access_domain import (
     ROLE_PERMISSIONS,
     Access,
     AccessError,
+    Invitation,
     InvitationCreated,
     InvitationDraft,
     Member,
@@ -21,34 +23,29 @@ from projects_service.access_domain import (
     RolePage,
     utc,
 )
-from projects_service.access_repository import AccessRepository, to_member
+from projects_service.collaboration_repository import CollaborationRepository
 from projects_service.domain import Project, ProjectPage, ProjectPatch
-from projects_service.models import InvitationRecord, MemberRecord, ProjectRecord
-from projects_service.repository import to_project
 
 
 class AccessService:
-    def __init__(self, repository: AccessRepository, clock: Callable[[], datetime]) -> None:
+    def __init__(self, repository: CollaborationRepository, clock: Callable[[], datetime]) -> None:
         self.repository = repository
         self.clock = clock
 
-    def access_for(self, row: ProjectRecord, user: UUID) -> Access:
+    def access_for(self, row: Project, user: UUID) -> Access:
         owner = row.owner_id == user
-        member = None if owner else self.repository.member(row.id, user)
+        sources = [] if owner else self.repository.sources(row.id, user, self.clock())
         roles = (
-            ["owner"]
-            if owner
-            else (
-                sorted(member.roles)
-                if member
-                and (member.expires_at is None or utc(member.expires_at) > utc(self.clock()))
-                else []
-            )
+            ["owner"] if owner else sorted({role for source in sources for role in source["roles"]})
         )
+        definitions = {
+            **ROLE_PERMISSIONS,
+            **{r["key"]: frozenset(r["permissions"]) for r in self.repository.definitions(row.id)},
+        }
         permissions = (
             set(OWNER)
             if owner
-            else set().union(*(ROLE_PERMISSIONS.get(role, frozenset()) for role in roles))
+            else set().union(*(definitions.get(role, frozenset()) for role in roles))
         )
         return Access(
             project_id=row.id,
@@ -58,9 +55,7 @@ class AccessService:
             permissions=sorted(permissions),
         )
 
-    def require(
-        self, row: ProjectRecord | None, user: UUID, permission: str = "project:read"
-    ) -> Access:
+    def require(self, row: Project | None, user: UUID, permission: str = "project:read") -> Access:
         if row is None:
             raise AccessError(404, "Project unavailable")
         access = self.access_for(row, user)
@@ -73,9 +68,9 @@ class AccessService:
     def access(self, user: UUID, project_id: UUID) -> Access:
         return self.require(self.repository.project(project_id), user)
 
-    def project(self, row: ProjectRecord, user: UUID) -> Project:
+    def project(self, row: Project, user: UUID) -> Project:
         access = self.require(row, user)
-        return to_project(row).model_copy(update={"permissions": access.permissions})
+        return row.model_copy(update={"permissions": access.permissions})
 
     def get(self, user: UUID, project_id: UUID) -> Project | None:
         row = self.repository.project(project_id)
@@ -83,59 +78,123 @@ class AccessService:
             return None
         return self.project(row, user)
 
-    def list(self, user: UUID, *, limit: int, offset: int, q: str) -> ProjectPage:
-        conditions = [self.repository.visible(user, utc(self.clock()))]
-        if q:
-            conditions.append(func.lower(ProjectRecord.name).contains(q.lower(), autoescape=True))
-        session = self.repository.session
-        total = session.scalar(select(func.count()).select_from(ProjectRecord).where(*conditions))
-        rows = session.scalars(
-            select(ProjectRecord)
-            .where(*conditions)
-            .order_by(ProjectRecord.created_at.desc(), ProjectRecord.id.desc())
-            .limit(limit)
-            .offset(offset)
-        )
+    def list(
+        self,
+        user: UUID,
+        *,
+        limit: int,
+        offset: int,
+        q: str,
+        status: str | None = None,
+        tag: str | None = None,
+        archived: bool = False,
+    ) -> ProjectPage:
+        rows = self.repository.all_projects(q=q)
+        visible = [
+            self.project(row, user)
+            for row in rows
+            if row.archived == archived
+            and (status is None or row.status == status)
+            and (tag is None or tag in row.tags)
+            and "project:read" in self.access_for(row, user).permissions
+        ]
         return ProjectPage(
-            items=[self.project(row, user) for row in rows],
-            total=total or 0,
-            limit=limit,
-            offset=offset,
+            items=visible[offset : offset + limit], total=len(visible), limit=limit, offset=offset
         )
+
+    def writable(
+        self, row: Project, *, administrative: bool = False, revocation: bool = False
+    ) -> None:
+        if (
+            self.repository.frozen(row.id)
+            or (row.archived and not revocation)
+            or (not administrative and row.status not in {"planned", "active"})
+        ):
+            raise AccessError(409, "Project is read-only")
+
+    def lifecycle(
+        self,
+        user: UUID,
+        project_id: UUID,
+        expected_version: int,
+        *,
+        status: str | None = None,
+        archive: bool | None = None,
+    ) -> Project:
+        with self.repository.locked_project(project_id) as row:
+            self.require(row, user, "project:lifecycle:manage")
+            assert row is not None
+            if row.version != expected_version or self.repository.frozen(project_id):
+                raise AccessError(409, "Project version conflict")
+            if archive is not None:
+                if row.status != "completed" or row.archived == archive:
+                    raise AccessError(409, "Invalid project lifecycle")
+                changes: dict[str, object] = {"archived": archive}
+                action = "project.archived" if archive else "project.restored"
+            else:
+                transitions = {
+                    "planned": {"active", "suspended"},
+                    "active": {"suspended", "completed"},
+                    "suspended": {"active", "completed"},
+                    "completed": {"active"},
+                }
+                if row.archived or status not in transitions[row.status]:
+                    raise AccessError(409, "Invalid project lifecycle")
+                changes = {"status": status}
+                action = "project.lifecycle"
+            result = self.project(
+                self.repository.change_state(project_id, user, changes, action), user
+            )
+        return result
+
+    def history(
+        self, user: UUID, project_id: UUID, limit: int, offset: int, action: str = ""
+    ) -> dict[str, object]:
+        self.require(self.repository.project(project_id), user, "project:audit:read")
+        return self.repository.events(project_id, limit, offset, action)
+
+    def access_v2(self, user: UUID, project_id: UUID) -> dict[str, object]:
+        row = self.repository.project(project_id)
+        access = self.require(row, user)
+        assert row is not None
+        return {
+            **access.model_dump(),
+            "access_version": 2,
+            "role_definitions": [{"key": "owner", "name": "Owner", "permissions": sorted(OWNER)}]
+            + [
+                {"key": key, "name": ROLE_NAMES[key], "permissions": sorted(permissions)}
+                for key, permissions in ROLE_PERMISSIONS.items()
+            ]
+            + [
+                {key: value for key, value in r.items() if key != "project_id"}
+                for r in self.repository.definitions(project_id)
+            ],
+            "project_status": row.status,
+            "archived": row.archived,
+            "version": row.version,
+            "origins": [{"type": "owner", "roles": ["owner"]}]
+            if access.is_owner
+            else self.repository.sources(project_id, user, self.clock()),
+        }
 
     def patch_project(self, user: UUID, project_id: UUID, patch: ProjectPatch) -> Project | None:
-        from sqlalchemy import update
-
         with self.repository.locked_project(project_id) as row:
             if row is None or "project:read" not in self.access_for(row, user).permissions:
                 return None
             self.require(row, user, "project:update")
-            # Owner predicate remains for existing owner SQL contract; members are
-            # authorized under the same project lock held until commit.
-            statement = update(ProjectRecord).where(ProjectRecord.id == project_id)
-            if row.owner_id == user:
-                statement = statement.where(ProjectRecord.owner_id == user)
-            changed = self.repository.session.scalar(
-                statement.values(**patch.model_dump(exclude_unset=True))
-                .returning(ProjectRecord)
-                .execution_options(populate_existing=True)
+            self.writable(row)
+            changed = self.repository.patch_project(
+                project_id, user, patch, owner=row.owner_id == user
             )
-            assert changed is not None
             result = self.project(changed, user)
         return result
 
     def delete_project(self, user: UUID, project_id: UUID) -> bool:
-        from sqlalchemy import delete
-
         with self.repository.locked_project(project_id) as row:
             if row is None or "project:read" not in self.access_for(row, user).permissions:
                 return False
             self.require(row, user, "project:delete")
-            self.repository.session.execute(
-                delete(ProjectRecord).where(
-                    ProjectRecord.id == project_id, ProjectRecord.owner_id == user
-                )
-            )
+            self.repository.delete_project(project_id, user)
         return True
 
     def roles(self, user: UUID, project_id: UUID) -> RolePage:
@@ -144,6 +203,10 @@ class AccessService:
             items=[
                 Role(key=key, name=ROLE_NAMES[key], permissions=sorted(value))
                 for key, value in ROLE_PERMISSIONS.items()
+            ]
+            + [
+                Role(**{key: value for key, value in r.items() if key != "project_id"})
+                for r in self.repository.definitions(project_id)
             ]
         )
 
@@ -156,7 +219,7 @@ class AccessService:
         records = self.repository.members(
             project_id, limit=limit if offset else limit - 1, offset=max(0, offset - 1)
         )
-        items = ([owner] if offset == 0 else []) + [to_member(member) for member in records]
+        items = ([owner] if offset == 0 else []) + records
         return MemberPage(
             items=items,
             total=self.repository.member_count(project_id) + 1,
@@ -177,41 +240,56 @@ class AccessService:
             if target == row.owner_id:
                 raise AccessError(409, "Project owner is protected")
             member = self.repository.member(project_id, target)
-            if member is None:
+            inherited = self.repository.sources(project_id, target, self.clock())
+            if member is None and not inherited:
                 raise AccessError(404, "Member unavailable")
+            self.writable(row, administrative=True, revocation=patch is None)
             self.repository.invalidate(project_id, target)
             if patch is None:
-                self.repository.session.delete(member)
+                self.repository.delete_member(project_id, target)
+                self.repository.deny(project_id, target, True)
                 result = None
             else:
+                assert member is not None
+                self.validate_roles(row, user, patch)
                 if "expires_at" in patch.model_fields_set:
                     self.validate_expiry(patch.expires_at)
                     member.expires_at = utc(patch.expires_at) if patch.expires_at else None
                 member.roles = list(patch.roles)
-                result = to_member(member)
+                member.role_grants = self.grants(patch, member.expires_at)
+                self.repository.update_member(project_id, member)
+                result = member
+            self.repository.change_state(
+                project_id,
+                user,
+                {},
+                "access.member.removed" if patch is None else "access.member.updated",
+            )
         return result
 
     def invite(self, user: UUID, project_id: UUID, draft: InvitationDraft) -> InvitationCreated:
         with self.repository.locked_project(project_id) as row:
             self.require(row, user, "project:members:manage")
             assert row is not None
+            self.writable(row, administrative=True)
+            self.validate_roles(row, user, draft)
             if draft.user_id == row.owner_id or self.repository.member(project_id, draft.user_id):
                 raise AccessError(409, "Member already exists")
             self.validate_expiry(draft.expires_at)
             code = secrets.token_urlsafe(32)
             expiry = utc(draft.expires_at) if draft.expires_at else None
             code_expiry = utc(self.clock()) + timedelta(days=7)
-            invitation = InvitationRecord(
+            invitation = Invitation(
                 id=uuid4(),
                 project_id=project_id,
                 user_id=draft.user_id,
                 roles=list(draft.roles),
                 expires_at=expiry,
                 code_expires_at=code_expiry,
-                code_hash=sha256(code.encode()).hexdigest(),
                 status="pending",
+                role_grants=self.grants(draft, expiry),
             )
-            self.repository.session.add(invitation)
+            self.repository.add_invitation(invitation, sha256(code.encode()).hexdigest())
             result = InvitationCreated(
                 id=invitation.id,
                 project_id=project_id,
@@ -220,7 +298,9 @@ class AccessService:
                 expires_at=expiry,
                 code=code,
                 code_expires_at=code_expiry,
+                role_grants=invitation.role_grants,
             )
+            self.repository.change_state(project_id, user, {}, "access.invitation.created")
         return result
 
     def consume(self, user: UUID, code: str, *, accept: bool) -> Access | None:
@@ -244,17 +324,52 @@ class AccessService:
                 or self.repository.member(project_id, user) is not None
             ):
                 raise unavailable
-            invitation.status = "accepted" if accept else "declined"
+            assert row is not None
+            self.writable(row, administrative=True, revocation=not accept)
+            self.repository.set_invitation_status(
+                invitation.id, "accepted" if accept else "declined"
+            )
             result = None
             if accept:
-                member = MemberRecord(
-                    project_id=project_id,
+                member = Member(
                     user_id=user,
                     roles=list(invitation.roles),
                     expires_at=invitation.expires_at,
+                    role_grants=invitation.role_grants,
                 )
-                self.repository.session.add(member)
-                self.repository.session.flush()
+                self.repository.deny(project_id, user, False)
+                self.repository.add_member(project_id, member)
                 self.repository.invalidate(project_id, user)
                 result = self.access_for(row, user)
+            self.repository.change_state(
+                project_id,
+                user,
+                {},
+                "access.invitation.accepted" if accept else "access.invitation.declined",
+            )
         return result
+
+    def validate_roles(self, row: Project, user: UUID, patch: MembershipPatch) -> None:
+        access = self.require(row, user, "project:members:manage")
+        definitions = {r.key: set(r.permissions) for r in self.roles(user, row.id).items}
+        if any(role not in definitions for role in patch.roles):
+            raise AccessError(422, "Invalid project input")
+        if any(not definitions[role].issubset(access.permissions) for role in patch.roles):
+            raise AccessError(403, "Cannot delegate unavailable privileges")
+        if patch.role_grants is not None:
+            if len({g.role for g in patch.role_grants}) != len(patch.role_grants) or {
+                g.role for g in patch.role_grants
+            } != set(patch.roles):
+                raise AccessError(422, "Role grants must match roles")
+            for grant in patch.role_grants:
+                self.validate_expiry(grant.expires_at)
+
+    def grants(
+        self, patch: MembershipPatch, expiry: datetime | None
+    ) -> builtins.list[dict[str, str | None]]:
+        if patch.role_grants is not None:
+            return [g.model_dump(mode="json") for g in patch.role_grants]
+        return [
+            {"role": role, "expires_at": utc(expiry).isoformat() if expiry else None}
+            for role in patch.roles
+        ]

@@ -17,6 +17,7 @@ from projects_service.security import SigningKeysUnavailable, TokenVerifier
 def client(issuer):
     app = create_app(issuer["settings"])
     init_schema(app.state.engine, "projects")
+    app.state.backlog.summary = lambda token, project_id: {"total": 0}
     with TestClient(app) as client:
         yield client
 
@@ -30,7 +31,7 @@ def test_http_create_list_and_private_detail(client, issuer):
     response = client.post("/projects", json={"name": "  Projeto  "}, headers=headers)
     assert response.status_code == 201
     p = response.json()
-    assert set(p) == {
+    assert set(p) >= {
         "id",
         "owner_id",
         "name",
@@ -304,11 +305,18 @@ def test_delete_unavailable_signing_keys_preserves_project(client, issuer, monke
 
 
 def test_delete_openapi_documents_bearer_and_empty_success(client):
-    operation = client.get("/openapi.json").json()["paths"]["/projects/{project_id}"]["delete"]
+    spec = client.get("/openapi.json").json()
+    operation = spec["paths"]["/projects/{project_id}"]["delete"]
     assert operation["security"] == [{"HTTPBearer": []}]
+    assert "requestBody" not in operation
     assert "content" not in operation["responses"]["204"]
-    for status in ("401", "404", "422", "503"):
+    for status in ("401", "403", "404", "409", "422", "503"):
         assert status in operation["responses"]
+        schema = operation["responses"][status]["content"]["application/json"]["schema"]
+        if "$ref" in schema:
+            schema = spec["components"]["schemas"][schema["$ref"].rsplit("/", 1)[-1]]
+        assert schema["properties"]["detail"]["type"] == "string"
+        assert "detail" in schema["required"]
 
 
 def test_create_and_patch_objective_preserve_identity_and_partial_fields(client, issuer):
@@ -324,10 +332,16 @@ def test_create_and_patch_objective_preserve_identity_and_partial_fields(client,
     path = "/projects/" + original["id"]
     changed = client.patch(path, json={"name": "  Novo 🌱  "}, headers=headers)
     assert changed.status_code == 200
-    assert changed.json() == {**original, "name": "Novo 🌱"}
+    assert changed.json() == {**original, "name": "Novo 🌱", "version": 2}
     cleared = client.patch(path, json={"description": "", "objective": ""}, headers=headers)
     assert cleared.status_code == 200
-    assert cleared.json() == {**original, "name": "Novo 🌱", "description": "", "objective": ""}
+    assert cleared.json() == {
+        **original,
+        "name": "Novo 🌱",
+        "description": "",
+        "objective": "",
+        "version": 3,
+    }
     assert client.get(path, headers=headers).json() == cleared.json()
     assert changed.headers["cache-control"] == "no-store"
 

@@ -1,113 +1,68 @@
-# Contrato de projetos — candidato 0.4.0
+# Contrato HTTP de Projetos — 0.5.0
 
-Projetos, Identidade e Backlog são serviços separados. Projetos valida JWT RS256
-pelo JWKS confiável configurado, usando os mesmos issuer/audience da Identidade.
-O proprietário vem de `sub` do JWT; o cliente não escolhe `owner_id`.
+O contrato atualizado está em [remaining-user-stories.md](remaining-user-stories.md),
+incluindo metadados, ciclo de vida, equipes, concessões, alocações, recomendações e
+notificações. Versão preparada para publicação; disponibilidade depende de deploy
+verificado. O conjunto de contratos usa Identidade 0.4.0 e Backlog 0.4.0.
 
-## Rotas
+## Autenticação e respostas
 
-| Método | Rota | Sucesso |
-| --- | --- | --- |
-| POST | `/projects` | 201, Project |
-| GET | `/projects?q=&limit=20&offset=0` | 200, ProjectPage dos projetos acessíveis |
-| GET | `/projects/{project_id}` | 200, Project acessível |
-| PATCH | `/projects/{project_id}` | 200, Project atualizado; exige project:update |
-| DELETE | `/projects/{project_id}` | 204, sem corpo |
+Toda operação protegida verifica JWT RS256/JWKS e estado atual via GET Identidade
+/auth/me com o mesmo Bearer. O proprietário é derivado do sub, nunca do formulário.
+401 indica autenticação recusada; 403, ação negada em objeto visível; 404 oculta
+objeto ausente ou sem acesso; 409, versão/conteúdo/estado conflitante; 422, entrada
+inválida; 503, dependência indisponível ou inconsistente. Erros são sanitizados.
+Páginas usam items,total,limit,offset (padrão 20, máximo 100). Mutação rejeita extras.
+Operações protegidas respondem Cache-Control:no-store; CORS aceita só origens
+configuradas. Tokens e códigos secretos não pertencem a URLs ou logs.
 
-Project contém `id`, `owner_id`, `name`, `description`, `objective`, `created_at` UTC
-e `permissions` do chamador. Membros, papéis, expiração e convites por código:
-[collaboration.md](collaboration.md).
-ProjectPage contém `items`, `total`, `limit`, `offset`. Toda rota exige
-`Authorization: Bearer <JWT>` e responde com `Cache-Control: no-store`, inclusive
-nos erros. CORS permite PATCH e DELETE somente para as origens previamente configuradas;
-a origem do GitHub Sync precisa constar em `CORS_ORIGINS` se a chamada vier do navegador.
+## Contratos preservados
 
-## Criação, edição e busca — 0.3.0
+POST/GET /projects e GET/PATCH/DELETE /projects/{id} permanecem. Campos de projeto
+novos são aditivos; a política de exclusão passou a recusar dados relevantes.
+GET /projects/{id}/access mantém sua forma; /access/v2 acrescenta definições e
+origens coerentes para consumidores novos. Membros/convites antigos continuam
+usáveis, com fallback da expiração global para concessões antigas.
 
-POST aceita `name` (aparado, 1–120), `description` e `objective` (strings até 2000,
-default `""`). PATCH aceita um subconjunto não vazio desses mesmos três campos;
-omitir preserva o valor existente, e strings vazias limpam descrição/objetivo.
-Null, extras, tipos incorretos e campos imutáveis retornam 422 sanitizado.
-`id`, `owner_id` e `created_at` permanecem iguais. O owner vem somente do JWT e
-integra o WHERE da própria instrução UPDATE quando ele edita; membros com
-`project:update` são revalidados sob lock do projeto até o commit, antes do 200.
-Projeto ausente/inacessível recebe o mesmo 404 `{"detail":"Project unavailable"}`;
-membro com leitura mas sem a ação recebe 403 `Insufficient project permissions`.
-401, 422 e 503 seguem os corpos seguros da tabela DELETE abaixo.
+## Exclusão definitiva
 
-GET `/projects` aceita `q` string aparada até 120 caracteres, default vazio.
-A busca é uma substring literal no nome, sem distinção de caixa: `%`, `_` e `/`
-não viram curingas. Não pesquisa descrição/objetivo. Acesso e busca filtram
-antes do total e da paginação; a ordem continua created_at DESC, id DESC.
-Status/etiquetas não fazem parte desse filtro.
+O contrato de respostas e o tratamento recomendado para o consumidor estão em
+[Exclusão de projetos — Módulo 2](module2-project-deletion.md).
 
-Timeout/503 não confirma edição: consultar GET para reconciliar antes de repetir.
-Se o salvamento respondeu 200 e a recarga falhou, o cliente deve manter o sucesso
-da gravação e oferecer atualização manual.
+DELETE é exclusivo do proprietário e só aceita cadastro sem conteúdo relevante.
+Primeiro, sob lock, verifica dados próprios e zero leases ativos e congela novas
+escritas. Depois consulta GET Backlog /projects/{id}/content-summary com o mesmo
+Bearer. A leitura é permitida durante o congelamento, sem adquirir lease.
+Finalmente revalida o estado sob lock antes do DELETE e commit. Conteúdo relevante
+retorna 409; dependência indisponível/inconsistente retorna 503. Falhas tratadas
+revertem o congelamento. Não há autorização por simples check-then-delete.
 
-## DELETE /projects/{project_id}
+Resumo reconhece stories,epics,tasks,history,recommendations,recommendation_events,
+review_events e total; total deve ser sua soma. Os três contadores novos podem
+faltar e valem zero por compatibilidade. Campo desconhecido não é ignorado numa
+decisão de exclusão. Todos os contadores devem ser inteiros não negativos.
 
-Disponível a partir do candidato 0.2.0, após integração/publicação e atualização
-da permissão runtime do banco. Nenhum corpo de requisição é necessário.
-`project_id` é UUID. Somente o proprietário pode excluir. A remoção filtra
-`project_id` **e** `owner_id` na mesma instrução SQL e só confirma após o commit.
+Backlog adquire POST /projects/{id}/write-leases antes de cada escrita e libera
+DELETE /write-leases/{lease_id} após commit/rollback. operation_id torna a aquisição
+idempotente; lease encerrado não é reutilizado. Não há expiração automática que
+permita escrita atrasada após exclusão. Leases de crash exigem operação
+administrativa explicitamente verificada, sem limpeza implícita no startup.
 
-| Status | Corpo | Tratamento pelo consumidor |
-| --- | --- | --- |
-| 204 | vazio, sem Content-Type JSON | Remover da lista e limpar seleção/detalhe; não chamar `response.json()` |
-| 401 | `{"detail":"Authentication required"}` | Solicitar login; inclui `WWW-Authenticate: Bearer` |
-| 403 | `{"detail":"Insufficient project permissions"}` | Membro sem permissão de excluir; manter sessão |
-| 404 | `{"detail":"Project unavailable"}` | Projeto ausente, alheio ou já excluído; atualizar a lista, sem revelar existência |
-| 422 | `{"detail":"Invalid project input"}` | Corrigir UUID; não repetir a mesma entrada |
-| 503 | `{"detail":"Service temporarily unavailable"}` | Banco ou chaves indisponíveis; consultar estado antes de decidir repetir |
+Não há cascata entre schemas/serviços e nenhum recurso GitHub é removido.
+Referências externas de outros módulos ainda precisam de contrato explícito;
+ausência de integração não comprova inexistência desses dados. O consumidor deve
+preferir arquivar projeto com trabalho e histórico, mantendo leitura autorizada.
 
-A operação é idempotente no efeito: repetir a exclusão retorna 404 e não altera
-outros projetos. Um timeout/perda de resposta ou 503 não comprova que o projeto
-continua existindo: o resultado do commit pode ser desconhecido para o cliente.
-Consulte GET `/projects/{project_id}` com a mesma identidade: 200 indica que ele
-ainda existe; 404 significa indisponível para esse usuário. Em 401, refaça login;
-em falha de rede/503, mantenha a ação pendente até conseguir reconciliar.
+204 não tem corpo; repetir DELETE retorna 404. Após timeout ou perda de resposta,
+consultar GET com a mesma identidade antes de repetir. Resposta 503 não prova que
+o commit anterior falhou. Em 401, refazer autenticação; em falha de reconciliação,
+manter a ação pendente sem inventar seu resultado.
 
-## Backlog e vínculos associados
+## Callbacks e disponibilidade
 
-**Não há exclusão em cascata entre serviços.** DELETE remove o projeto e, por FK
-no mesmo schema, seus membros e convites. Não consulta nem modifica schemas de
-outros módulos.
-
-- **Backlog:** não é necessário apagar histórias antes. Elas permanecem
-  armazenadas, mas GET/listagem/criação/PATCH subsequentes recebem 404 porque
-  o Backlog consulta GET `/projects/{project_id}/access` com o mesmo Bearer em cada operação.
-  Essa retenção não oferece uma função de restauração ou limpeza automática.
-- **Concorrência:** uma operação de backlog cuja autorização ocorreu antes da
-  exclusão pode terminar e gravar sua história. Não há lock ou transação
-  distribuída entre as APIs. Todas as novas verificações de acesso recebem 404.
-- **GitHub Sync:** vínculos, webhooks, índices e tarefas pertencem ao Módulo 2.
-  Esta API não conhece esses registros, não os remove, não envia callback/evento
-  e não exige uma confirmação de limpeza deles para excluir.
-- **GitHub:** nenhum repositório, issue, branch ou PR remoto é excluído.
-
-No GitHub Sync, a sequência recomendada é:
-
-1. Exibir confirmação explícita: o projeto deixará de estar disponível e seu
-   backlog ficará inacessível; recursos no GitHub serão mantidos.
-2. Após confirmação, guardar `project_id` para reconciliação e suspender novas
-   sincronizações desse projeto no Módulo 2 enquanto a ação estiver pendente.
-3. Chamar DELETE com o Bearer da sessão. Em 204, limpar vínculos locais conforme
-   a política do Módulo 2 e atualizar a interface. Em 404, reconciliar a lista e
-   os vínculos dessa identidade; não interpretar 404 como prova de propriedade.
-4. Se a limpeza local falhar depois do 204, mantê-la pendente e tentar novamente
-   no Módulo 2. O projeto já foi excluído; não reportar que continua disponível.
-5. Em timeout/503, reconciliar por GET antes de reativar sincronizações ou dar
-   a ação como concluída. Nunca confundir indisponibilidade com confirmação.
-
-Exclusão física do histórico ou cascata distribuída exigirá outro contrato com
-coordenação entre os responsáveis. A interface deve apresentar a política atual.
-
-## Banco e implantação
-
-A versão 0.4.0 exige migração explícita de `objective`, members e invitations
-em bancos antigos. A role runtime precisa das permissões nas três tabelas próprias
-documentadas em [collaboration.md](collaboration.md), além das já existentes.
-Procedimento do operador em
-[database-neon.md](database-neon.md). Sem UPDATE, PATCH retorna 503; readiness
-verifica leitura e não comprova permissões de escrita ou versão do schema.
+Backlog chama access/v2 e elegibilidade com o mesmo Bearer. Essas leituras usam
+pool separado e limitado para não disputar com requisições que já seguram conexão
+de Projetos. Autenticação e autorização permanecem iguais. SQLite em memória
+compartilha engine para preservar o mesmo banco isolado. O teste de concorrência
+faz dois resumos simultâneos com callbacks HTTP reais em loopback e PostgreSQL
+descartável. Isso não comprova disponibilidade em produção.

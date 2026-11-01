@@ -1,10 +1,9 @@
 from datetime import UTC, datetime
-from typing import Literal
 from uuid import UUID
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator
 
-RoleKey = Literal["product_owner", "project_manager", "developer"]
+RoleKey = str
 DEVELOPER = frozenset(
     {
         "project:read",
@@ -14,7 +13,14 @@ DEVELOPER = frozenset(
     }
 )
 PRODUCT_OWNER = DEVELOPER | {"project:update", "backlog:create", "backlog:update"}
-PROJECT_MANAGER = PRODUCT_OWNER | {"project:members:manage"}
+PROJECT_MANAGER = PRODUCT_OWNER | {
+    "project:members:manage",
+    "project:lifecycle:manage",
+    "project:audit:read",
+    "project:roles:manage",
+    "project:teams:manage",
+    "backlog:reorder",
+}
 OWNER = PROJECT_MANAGER | {"project:delete"}
 ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
     "product_owner": PRODUCT_OWNER,
@@ -54,6 +60,7 @@ class Member(BaseModel):
     user_id: UUID
     roles: list[str]
     expires_at: datetime | None
+    role_grants: list[dict[str, str | None]] = Field(default_factory=list)
     is_owner: bool = False
 
 
@@ -64,9 +71,16 @@ class MemberPage(BaseModel):
     offset: int
 
 
+class RoleGrant(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    role: str = Field(min_length=1, max_length=80)
+    expires_at: AwareDatetime | None = Field(default=None, strict=False)
+
+
 class MembershipPatch(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True, hide_input_in_errors=True)
-    roles: list[RoleKey] = Field(max_length=3)
+    roles: list[RoleKey] = Field(max_length=50)
+    role_grants: list[RoleGrant] | None = Field(default=None, max_length=50)
     expires_at: AwareDatetime | None = Field(default=None, strict=False)
 
     @field_validator("roles")
@@ -86,7 +100,7 @@ class MembershipPatch(BaseModel):
 
 class InvitationDraft(MembershipPatch):
     user_id: UUID = Field(strict=False)
-    roles: list[RoleKey] = Field(min_length=1, max_length=3)
+    roles: list[RoleKey] = Field(min_length=1, max_length=50)
 
 
 class InvitationCreated(BaseModel):
@@ -95,8 +109,24 @@ class InvitationCreated(BaseModel):
     user_id: UUID
     roles: list[str]
     expires_at: datetime | None
+    role_grants: list[dict[str, str | None]] = Field(default_factory=list)
     code: str = Field(repr=False)
     code_expires_at: datetime
+
+
+class Invitation(BaseModel):
+    """Persistence-independent invitation snapshot; never contains the secret code."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: UUID
+    project_id: UUID
+    user_id: UUID
+    roles: list[str]
+    expires_at: datetime | None
+    role_grants: list[dict[str, str | None]] = Field(default_factory=list)
+    code_expires_at: datetime
+    status: str
 
 
 class InvitationAction(BaseModel):

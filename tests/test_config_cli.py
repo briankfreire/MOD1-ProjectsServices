@@ -8,9 +8,9 @@ from sqlalchemy.orm import Session
 from projects_service.cli import main
 from projects_service.config import Settings
 from projects_service.database import create_database_engine
+from projects_service.dependencies import build_projects_service
 from projects_service.domain import ProjectDraft
 from projects_service.repository import ProjectRepository
-from projects_service.service import ProjectsService
 
 
 @pytest.mark.parametrize(
@@ -47,7 +47,7 @@ def test_init_is_explicit_and_idempotent(tmp_path, monkeypatch, capsys):
     assert inspect(engine).get_table_names() == []
     assert main(["init"]) == 0
     with Session(engine) as session:
-        p = ProjectsService(ProjectRepository(session)).create(uuid4(), ProjectDraft(name="A"))
+        p = build_projects_service(session).create(uuid4(), ProjectDraft(name="A"))
     assert main(["init"]) == 0
     with Session(engine) as session:
         assert ProjectRepository(session).get_owned(p.owner_id, p.id).name == "A"
@@ -79,7 +79,22 @@ def test_cli_module_runs_init(tmp_path):
     assert result.returncode == 0
     engine = create_database_engine(Settings(database_url=url, _env_file=None))
     try:
-        assert inspect(engine).get_table_names() == ["invitations", "members", "projects"]
+        assert set(inspect(engine).get_table_names()) >= {
+            "invitations",
+            "members",
+            "projects",
+            "events",
+            "roles",
+            "teams",
+            "team_members",
+            "team_links",
+            "team_invitations",
+            "project_denies",
+            "allocations",
+            "write_leases",
+            "recommendations",
+            "notification_outbox",
+        }
     finally:
         engine.dispose()
 
@@ -112,7 +127,7 @@ def test_migrate_old_schema_preserves_rows_twice_without_implicit_init_migration
     with Session(engine) as session:
         project = ProjectRepository(session).get_owned(owner_id, project_id)
         assert project.name == "Old" and project.description == "Keep" and project.objective == ""
-        created = ProjectsService(ProjectRepository(session)).create(
+        created = build_projects_service(session).create(
             owner_id, ProjectDraft(name="New", objective="Meta")
         )
         assert created.objective == "Meta"
