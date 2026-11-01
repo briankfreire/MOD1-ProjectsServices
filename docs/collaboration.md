@@ -1,4 +1,9 @@
-# Colaboração por projeto — candidato 0.4.0
+# Colaboração por projeto — histórico do candidato 0.4.0
+
+O contrato atual da branch local, com equipes, papéis personalizados, expiração
+por concessão, capacidade e notificações internas, está em
+[remaining-user-stories.md](remaining-user-stories.md). O texto abaixo registra
+o candidato anterior de papéis fixos; mudanças do novo contrato prevalecem.
 
 Projetos controla membros, convites e autorização. JWT identifica o usuário e não
 contém papéis de projeto. Toda consulta calcula permissões atuais pelo servidor;

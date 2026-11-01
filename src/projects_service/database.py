@@ -66,11 +66,32 @@ def migrate_schema(engine: Engine, schema: str) -> None:
             connection.execute(
                 text(f"ALTER TABLE {table} ADD COLUMN objective TEXT NOT NULL DEFAULT ''")
             )
+        additions = {
+            "details": "JSON NOT NULL DEFAULT '{}'",
+            "status": "VARCHAR(16) NOT NULL DEFAULT 'active'",
+            "archived": "BOOLEAN NOT NULL DEFAULT false",
+            "version": "INTEGER NOT NULL DEFAULT 1",
+            "deletion_frozen": "BOOLEAN NOT NULL DEFAULT false",
+        }
+        for name, ddl in additions.items():
+            if name not in columns:
+                connection.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
+        for entity in ("members", "invitations"):
+            if inspector.has_table(entity, schema=target):
+                entity_columns = {
+                    column["name"] for column in inspector.get_columns(entity, schema=target)
+                }
+                entity_table = preparer.quote(entity)
+                if target:
+                    entity_table = preparer.quote_schema(target) + "." + entity_table
+                if "role_grants" not in entity_columns:
+                    connection.execute(
+                        text(
+                            f"ALTER TABLE {entity_table} ADD COLUMN role_grants "
+                            "JSON NOT NULL DEFAULT '[]'"
+                        )
+                    )
         Base.metadata.create_all(
             connection,
-            tables=[
-                table
-                for table in Base.metadata.sorted_tables
-                if table.name in {"members", "invitations"}
-            ],
+            tables=[table for table in Base.metadata.sorted_tables if table.name != "projects"],
         )

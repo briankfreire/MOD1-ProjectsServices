@@ -5,7 +5,8 @@ from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import inspect, text
+from sqlalchemy import event, inspect, text
+from sqlalchemy.exc import OperationalError
 
 from projects_service.app import create_app
 from projects_service.database import init_schema, migrate_schema
@@ -17,6 +18,11 @@ ALL = sorted(
         "project:delete",
         "project:members:read",
         "project:members:manage",
+        "project:lifecycle:manage",
+        "project:audit:read",
+        "project:roles:manage",
+        "project:teams:manage",
+        "backlog:reorder",
         "backlog:read",
         "backlog:create",
         "backlog:update",
@@ -24,7 +30,7 @@ ALL = sorted(
     ]
 )
 DEV = sorted(["project:read", "project:members:read", "backlog:read", "backlog:update_status"])
-PO = sorted(set(ALL) - {"project:delete", "project:members:manage"})
+PO = sorted(set(DEV) | {"project:update", "backlog:create", "backlog:update"})
 PM = sorted(set(ALL) - {"project:delete"})
 
 
@@ -133,6 +139,7 @@ def test_owner_permissions_and_owner_membership_protection(client, issuer):
         "roles": ["owner"],
         "expires_at": None,
         "is_owner": True,
+        "role_grants": [],
     }
 
 
@@ -276,6 +283,7 @@ def test_atomic_invitation_accept_decline_file_sqlite(issuer, tmp_path):
     settings = Settings(
         database_url=f"sqlite:///{tmp_path / 'race.db'}",
         jwks_url=issuer["settings"].jwks_url,
+        auth_session_check_enabled=False,
         _env_file=None,
     )
     app = create_app(settings)
@@ -296,7 +304,7 @@ def test_atomic_invitation_accept_decline_file_sqlite(issuer, tmp_path):
         assert page["total"] == (2 if 200 in results else 1)
 
 
-def test_rbac_migration_twice_and_delete_cascades(client, issuer):
+def test_rbac_migration_twice_and_safe_delete_preserves_access_data(client, issuer):
     engine = client.app.state.engine
     migrate_schema(engine, "projects")
     migrate_schema(engine, "projects")
@@ -304,10 +312,74 @@ def test_rbac_migration_twice_and_delete_cascades(client, issuer):
     path, user = project(client, issuer), uuid4()
     join(client, issuer, path, user, ["developer"])
     invite(client, issuer, path, uuid4(), ["developer"])
-    assert client.delete(path, headers=headers(issuer)).status_code == 204
+    assert client.delete(path, headers=headers(issuer)).status_code == 409
     with engine.connect() as conn:
-        assert conn.execute(text("SELECT count(*) FROM members")).scalar_one() == 0
-        assert conn.execute(text("SELECT count(*) FROM invitations")).scalar_one() == 0
+        assert conn.execute(text("SELECT count(*) FROM members")).scalar_one() > 0
+        assert conn.execute(text("SELECT count(*) FROM invitations")).scalar_one() > 0
+
+
+@pytest.mark.parametrize("failure_event", ["statement", "commit"])
+def test_accept_failure_rolls_back_invitation_and_membership(client, issuer, failure_event):
+    path, user = project(client, issuer), uuid4()
+    code = invite(client, issuer, path, user, ["developer"]).json()["code"]
+    engine = client.app.state.engine
+
+    def fail_member_insert(connection, cursor, statement, parameters, context, executemany):
+        if statement.lstrip().upper().startswith("INSERT INTO") and "members" in statement:
+            raise OperationalError(statement, parameters, Exception("synthetic storage failure"))
+
+    def fail_commit(connection):
+        raise OperationalError("COMMIT", {}, Exception("synthetic storage failure"))
+
+    name, handler = (
+        ("before_cursor_execute", fail_member_insert)
+        if failure_event == "statement"
+        else ("commit", fail_commit)
+    )
+    event.listen(engine, name, handler)
+    try:
+        response = client.post(
+            "/invitations/accept", json={"code": code}, headers=headers(issuer, user)
+        )
+        assert response.status_code == 503
+        assert response.json() == {"detail": "Service temporarily unavailable"}
+    finally:
+        event.remove(engine, name, handler)
+    with engine.connect() as connection:
+        assert connection.execute(text("SELECT status FROM invitations")).scalar_one() == "pending"
+        assert connection.execute(text("SELECT count(*) FROM members")).scalar_one() == 0
+    assert (
+        client.post(
+            "/invitations/accept", json={"code": code}, headers=headers(issuer, user)
+        ).status_code
+        == 200
+    )
+
+
+@pytest.mark.parametrize("action", ["patch", "delete"])
+def test_member_commit_failure_preserves_permissions_and_allows_retry(client, issuer, action):
+    path, user = project(client, issuer), uuid4()
+    original = join(client, issuer, path, user, ["developer"])
+    engine = client.app.state.engine
+
+    def fail_commit(connection):
+        raise OperationalError("COMMIT", {}, Exception("synthetic storage failure"))
+
+    def mutate():
+        member_path = path + "/members/" + str(user)
+        if action == "patch":
+            return client.patch(
+                member_path, json={"roles": ["project_manager"]}, headers=headers(issuer)
+            )
+        return client.delete(member_path, headers=headers(issuer))
+
+    event.listen(engine, "commit", fail_commit)
+    try:
+        assert mutate().status_code == 503
+    finally:
+        event.remove(engine, "commit", fail_commit)
+    assert client.get(path + "/access", headers=headers(issuer, user)).json() == original
+    assert mutate().status_code == (200 if action == "patch" else 204)
 
 
 def test_postgresql_membership_invitation_race_and_revocation(issuer):
@@ -327,6 +399,7 @@ def test_postgresql_membership_invitation_race_and_revocation(issuer):
         database_url=url,
         database_schema=schema,
         jwks_url=issuer["settings"].jwks_url,
+        auth_session_check_enabled=False,
         _env_file=None,
     )
     app = create_app(settings)

@@ -1,11 +1,11 @@
 from datetime import UTC
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
-from projects_service.domain import Project, ProjectPage, ProjectPatch
-from projects_service.models import ProjectRecord
+from projects_service.domain import Metadata, Project, ProjectPage, ProjectPatch
+from projects_service.models import EventRecord, ProjectRecord
 
 
 def to_project(record: ProjectRecord) -> Project:
@@ -18,6 +18,10 @@ def to_project(record: ProjectRecord) -> Project:
         description=record.description,
         objective=record.objective,
         created_at=created,
+        status=record.status,
+        archived=record.archived,
+        version=record.version,
+        **record.details,
     )
 
 
@@ -26,9 +30,24 @@ class ProjectRepository:
         self.session = session
 
     def add(self, project: Project) -> Project:
-        record = ProjectRecord(**project.model_dump(exclude={"permissions"}))
+        values = project.model_dump(exclude={"permissions", *Metadata.model_fields})
+        record = ProjectRecord(
+            **values, details=project.model_dump(mode="json", include=set(Metadata.model_fields))
+        )
         try:
             self.session.add(record)
+            self.session.flush()
+            self.session.add(
+                EventRecord(
+                    id=uuid4(),
+                    project_id=record.id,
+                    actor_id=record.owner_id,
+                    action="project.created",
+                    version=1,
+                    changes={},
+                    created_at=record.created_at,
+                )
+            )
             self.session.commit()
             return to_project(record)
         except Exception:

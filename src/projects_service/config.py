@@ -15,6 +15,14 @@ class Settings(BaseSettings):
     jwt_issuer: str = Field(default="mod1-auth-local", min_length=1)
     jwt_audience: str = Field(default="engenharia-software-api", min_length=1)
     jwks_url: str = "http://127.0.0.1:8000/.well-known/jwks.json"
+    auth_api_base_url: str = "http://127.0.0.1:8000"
+    auth_session_check_enabled: bool = True
+    backlog_api_base_url: str = "http://127.0.0.1:8002"
+    access_inactivity_days: int = Field(default=30, ge=1, le=3650)
+    ai_base_url: str | None = None
+    ai_model: str = "unconfigured"
+    ai_simulated: bool = False
+    ai_api_key: SecretStr | None = Field(default=None, repr=False)
     cors_origins: list[str] = Field(default_factory=lambda: ["http://127.0.0.1:5173"])
 
     @field_validator("database_url")
@@ -38,9 +46,11 @@ class Settings(BaseSettings):
             )
         return value
 
-    @field_validator("jwks_url")
+    @field_validator("jwks_url", "auth_api_base_url", "backlog_api_base_url", "ai_base_url")
     @classmethod
-    def validate_jwks(cls, value: str) -> str:
+    def validate_jwks(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
         parsed = urlsplit(value)
         if (
             parsed.scheme not in ("http", "https")
