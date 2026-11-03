@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.6.0 — candidato local, 2026-11-03
+
+- Provedor Gemini opcional no backend para roles, access_revocation, teams,
+  skills_map e training, com schema tipado por finalidade e prompts em português.
+- Transporte REST limitado, sem retries/fallback, chave somente no cabeçalho,
+  erros sanitizados e metadados explícitos de provedor/modelo/simulação.
+- Sugestões vazias podem ser consultadas ou rejeitadas; aprovação retorna 409
+  sem efeitos. Validações de IDs/evidências/opt-in e rechecagens transacionais
+  de contexto/permissões continuam no servidor.
+- Configuração e testes controlados em [docs/gemini.md](docs/gemini.md).
+  Candidato local sem publicação/deploy; testes não comprovam IA real ou quota gratuita.
+
 ## 0.5.0 — preparação de release, 2026-11-01
 
 ### Added

@@ -1,6 +1,7 @@
+from typing import Literal, Self
 from urllib.parse import urlsplit
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import make_url
 
@@ -23,7 +24,49 @@ class Settings(BaseSettings):
     ai_model: str = "unconfigured"
     ai_simulated: bool = False
     ai_api_key: SecretStr | None = Field(default=None, repr=False)
+    ai_provider: Literal["structured-http", "gemini"] = "structured-http"
+    gemini_api_key: SecretStr | None = Field(default=None, repr=False)
+    gemini_model: str = Field(
+        default="gemini-3.5-flash-lite", pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+    )
+    gemini_timeout_seconds: int = Field(default=30, ge=1, le=30)
+    gemini_max_output_tokens: int = Field(default=4096, ge=256, le=8192)
+    gemini_api_base_url: str = "https://generativelanguage.googleapis.com/v1beta"
     cors_origins: list[str] = Field(default_factory=lambda: ["http://127.0.0.1:5173"])
+
+    @field_validator("gemini_api_base_url")
+    @classmethod
+    def validate_gemini_base(cls, value: str) -> str:
+        try:
+            parsed = urlsplit(value)
+            trusted = (
+                parsed.scheme == "https"
+                and parsed.hostname == "generativelanguage.googleapis.com"
+                and parsed.port in {None, 443}
+            ) or (parsed.scheme == "http" and parsed.hostname in LOOPBACK)
+            if (
+                not trusted
+                or parsed.username is not None
+                or parsed.password is not None
+                or parsed.query
+                or parsed.fragment
+                or "?" in value
+                or "#" in value
+                or "%" in value
+                or "\\" in value
+                or any(c.isspace() for c in value)
+                or any(segment in {".", ".."} for segment in parsed.path.split("/"))
+            ):
+                raise ValueError()
+        except ValueError:
+            raise ValueError("Gemini requires official HTTPS or HTTP loopback") from None
+        return value
+
+    @model_validator(mode="after")
+    def validate_gemini_mode(self) -> Self:
+        if self.ai_provider == "gemini" and self.ai_simulated:
+            raise ValueError("Gemini cannot be marked simulated")
+        return self
 
     @field_validator("database_url")
     @classmethod

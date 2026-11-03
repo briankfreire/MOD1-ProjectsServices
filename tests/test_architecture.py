@@ -36,6 +36,7 @@ FORBIDDEN = {
         "projects_service.recommendation_service",
         "projects_service.collaboration_repository",
         "projects_service.integrations",
+        "projects_service.gemini_adapter",
         "projects_service.collaboration_routes",
     },
     "application": {
@@ -47,6 +48,10 @@ FORBIDDEN = {
         "projects_service.dependencies",
         "projects_service.routes",
         "projects_service.access_routes",
+        "httpx",
+        "httpx2",
+        "projects_service.integrations",
+        "projects_service.gemini_adapter",
     },
     "presentation": {
         "sqlalchemy",

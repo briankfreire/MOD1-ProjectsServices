@@ -333,7 +333,7 @@ class RecommendationService:
                 ),
                 None,
             )
-            if pending is not None and pending["status"] == "pending":
+            if pending is not None and pending["status"] == "pending" and pending["suggestions"]:
                 latest = self.capture_external(actor, project_id, pending["kind"])
         with self.repository.locked_project(project_id) as project:
             self.access.require(project, actor, "project:members:manage")
@@ -355,6 +355,8 @@ class RecommendationService:
             if record["version"] != expected_version or record["status"] != "pending":
                 raise AccessError(409, "Recommendation version conflict")
             if approve:
+                if not record["suggestions"]:
+                    raise AccessError(409, "Recommendation has no applicable suggestions")
                 if latest is None:
                     raise AccessError(409, "Recommendation snapshot unavailable; retry")
                 if record["kind"] == "access_revocation":
