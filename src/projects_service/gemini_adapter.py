@@ -46,6 +46,10 @@ KIND_INSTRUCTIONS = {
 }
 
 
+def reject_nonfinite(value: str) -> None:
+    raise ValueError("Invalid JSON constant")
+
+
 class GeminiAdapter:
     def __init__(self, settings: Settings, *, client: httpx.Client | None = None) -> None:
         self.settings = settings
@@ -82,7 +86,7 @@ class GeminiAdapter:
             timeout=settings.gemini_timeout_seconds, follow_redirects=False, trust_env=False
         )
         try:
-            with client.stream(
+            request = httpx.Request(
                 "POST",
                 settings.gemini_api_base_url.rstrip("/")
                 + "/models/"
@@ -90,17 +94,25 @@ class GeminiAdapter:
                 + ":generateContent",
                 json=body,
                 headers={"x-goog-api-key": settings.gemini_api_key.get_secret_value()},
-                follow_redirects=False,
-                timeout=settings.gemini_timeout_seconds,
-            ) as response:
+                extensions={"timeout": httpx.Timeout(settings.gemini_timeout_seconds).as_dict()},
+            )
+            response = client.send(request, auth=None, stream=True, follow_redirects=False)
+            try:
                 response.raise_for_status()
                 chunks = bytearray()
                 for chunk in response.iter_bytes():
                     if len(chunks) + len(chunk) > 262144:
                         raise ValueError()
                     chunks.extend(chunk)
-                data = json.loads(chunks)
+                data = json.loads(chunks, parse_constant=reject_nonfinite)
+            finally:
+                response.close()
             if not isinstance(data, dict) or data.get("promptFeedback", {}).get("blockReason"):
+                raise ValueError()
+            if any(
+                rating.get("blocked")
+                for rating in data.get("promptFeedback", {}).get("safetyRatings", [])
+            ):
                 raise ValueError()
             candidates = data["candidates"]
             if not isinstance(candidates, list) or len(candidates) != 1:
@@ -108,12 +120,16 @@ class GeminiAdapter:
             candidate = candidates[0]
             if candidate["finishReason"] != "STOP":
                 raise ValueError()
+            if any(rating.get("blocked") for rating in candidate.get("safetyRatings", [])):
+                raise ValueError()
             parts = candidate["content"]["parts"]
             if not isinstance(parts, list) or not parts:
                 raise ValueError()
             texts = []
             for part in parts:
                 if not isinstance(part, dict) or "functionCall" in part:
+                    raise ValueError()
+                if "thought" in part and type(part["thought"]) is not bool:
                     raise ValueError()
                 if part.get("thought") is True:
                     continue
@@ -129,7 +145,7 @@ class GeminiAdapter:
                 "model": settings.gemini_model,
                 "simulated": False,
             }
-        except (httpx.HTTPError, ValueError, TypeError, KeyError, AttributeError):
+        except (httpx.HTTPError, ValueError, TypeError, KeyError, AttributeError, RecursionError):
             raise AccessError(
                 503, "Recommendation provider returned unavailable or invalid output"
             ) from None

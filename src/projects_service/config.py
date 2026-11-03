@@ -39,10 +39,11 @@ class Settings(BaseSettings):
     def validate_gemini_base(cls, value: str) -> str:
         try:
             parsed = urlsplit(value)
+            port = parsed.port
             trusted = (
                 parsed.scheme == "https"
                 and parsed.hostname == "generativelanguage.googleapis.com"
-                and parsed.port in {None, 443}
+                and port in {None, 443}
             ) or (parsed.scheme == "http" and parsed.hostname in LOOPBACK)
             if (
                 not trusted

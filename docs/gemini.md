@@ -30,12 +30,16 @@ ferramentas, pesquisa ou chave em URL. Não segue redirects, consulta proxies
 implícitos, repete requisições ou troca de modelo após falha. O host permitido
 é o oficial HTTPS, sem porta alternativa. HTTP loopback é a única alternativa
 para simulação local; userinfo, query, fragmento e traversal são rejeitados.
+Headers, cookies, autenticação e parâmetros padrão de um cliente HTTP injetado
+não são herdados pela requisição Gemini. Portas inválidas são rejeitadas na configuração.
 
 Contexto tem limite de 128 KiB, resposta de 256 KiB; permanecem os limites
 de domínio de 50 sugestões/evidências. Exige um único candidato com
 `finishReason=STOP`, sem bloqueio ou function call. Textos `thought=true` não
 compõem a resposta final. Quota 429, 5xx, timeout, truncamento, JSON inválido
 e saídas fora do schema geram 503 sanitizado sem persistir recomendações.
+Bloqueios de `safetyRatings` são rejeitados mesmo com STOP; `thought` exige
+tipo booleano. JSON com constantes não finitas ou profundidade excessiva é rejeitado.
 Contexto acima do limite retorna 422 antes da chamada; não há gravação parcial.
 
 | Tipo | Sugestões permitidas |
@@ -65,9 +69,9 @@ controlado e HTTP loopback; não confirmam qualidade do modelo, quota ou chamada
 Gemini real. A validação de IA real permanece pendente para execução explícita
 com dados sintéticos e chave privada. Não houve push, merge ou deploy.
 
-Evidência em 03/11/2026: suíte completa com 260 aprovados e 11 pulados
+Evidência em 03/11/2026: suíte completa com 271 aprovados e 11 pulados
 (10 dependem de PostgreSQL loopback descartável e um de `BACKLOG_SERVICE_PATH`).
-Os 59 casos Gemini passaram; Ruff, verificação de formato e mypy (25 módulos)
+Os 70 casos Gemini passaram; Ruff, verificação de formato e mypy (25 módulos)
 passaram. Metadados da instalação local e OpenAPI conferidos como 0.6.0.
 
 Contrato oficial de referência: [generateContent](https://ai.google.dev/api/generate-content),

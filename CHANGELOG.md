@@ -6,6 +6,8 @@
   skills_map e training, com schema tipado por finalidade e prompts em português.
 - Transporte REST limitado, sem retries/fallback, chave somente no cabeçalho,
   erros sanitizados e metadados explícitos de provedor/modelo/simulação.
+- Requisições Gemini isoladas de credenciais/cookies/parâmetros do cliente;
+  bloqueios de segurança, JSON profundo/não finito e flags inválidas são rejeitados.
 - Sugestões vazias podem ser consultadas ou rejeitadas; aprovação retorna 409
   sem efeitos. Validações de IDs/evidências/opt-in e rechecagens transacionais
   de contexto/permissões continuam no servidor.

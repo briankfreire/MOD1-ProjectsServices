@@ -367,3 +367,70 @@ def test_gemini_ignores_thought_text_and_respects_configured_model_and_limits():
             client=c,
         ).generate("training", {})
     assert result["model"] == "custom-safe-model" and "private reasoning" not in json.dumps(result)
+
+
+@pytest.mark.parametrize("url", ["http://localhost:bad/v1beta", "http://127.0.0.1:65536/v1beta"])
+def test_gemini_rejects_invalid_loopback_port_before_transport(url):
+    with pytest.raises(ValidationError):
+        settings(gemini_api_base_url=url)
+
+
+@pytest.mark.parametrize("location", ["prompt", "candidate"])
+def test_gemini_rejects_blocked_safety_ratings_despite_stop(location):
+    data = envelope()
+    ratings = [{"category": "HARM_CATEGORY_HATE_SPEECH", "blocked": True}]
+    if location == "prompt":
+        data["promptFeedback"] = {"safetyRatings": ratings}
+    else:
+        data["candidates"][0]["safetyRatings"] = ratings
+    with httpx.Client(transport=httpx.MockTransport(lambda _: httpx.Response(200, json=data))) as c:
+        with pytest.raises(AccessError) as error:
+            AIClient(settings(), client=c).generate("roles", {})
+    assert error.value.status == 503
+
+
+def test_gemini_deep_json_is_sanitized_as_provider_error():
+    with httpx.Client(
+        transport=httpx.MockTransport(
+            lambda _: httpx.Response(200, content=b"[" * 100000 + b"]" * 100000)
+        )
+    ) as c:
+        with pytest.raises(AccessError) as error:
+            AIClient(settings(), client=c).generate("roles", {})
+    assert error.value.status == 503
+
+
+def test_gemini_does_not_inherit_injected_client_user_credentials():
+    def handler(request):
+        assert "authorization" not in request.headers
+        assert "cookie" not in request.headers
+        assert "user_token" not in request.url.params
+        assert request.headers["x-goog-api-key"] == "synthetic-key"
+        return httpx.Response(200, json=envelope())
+
+    with httpx.Client(
+        transport=httpx.MockTransport(handler),
+        headers={"Authorization": "Bearer synthetic-user"},
+        cookies={"session": "synthetic-user-session"},
+        params={"user_token": "synthetic-user"},
+        auth=httpx.BasicAuth("synthetic", "password"),
+    ) as c:
+        assert AIClient(settings(), client=c).generate("roles", {})["suggestions"] == []
+
+
+@pytest.mark.parametrize("thought", ["true", "false", 0, None])
+def test_gemini_requires_boolean_thought_flag(thought):
+    data = envelope()
+    data["candidates"][0]["content"]["parts"][0]["thought"] = thought
+    with httpx.Client(transport=httpx.MockTransport(lambda _: httpx.Response(200, json=data))) as c:
+        with pytest.raises(AccessError) as error:
+            AIClient(settings(), client=c).generate("roles", {})
+    assert error.value.status == 503
+
+
+def test_gemini_rejects_nonstandard_json_constants_in_envelope():
+    data = json.dumps(envelope())[:-1] + ', "usageMetadata": NaN}'
+    with httpx.Client(transport=httpx.MockTransport(lambda _: httpx.Response(200, text=data))) as c:
+        with pytest.raises(AccessError) as error:
+            AIClient(settings(), client=c).generate("roles", {})
+    assert error.value.status == 503
