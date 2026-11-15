@@ -42,6 +42,7 @@ def build_runtime_patch(
     *,
     service,
     enable_notifications=False,
+    notification_source=None,
     resend_from="",
     model="gemini-3.5-flash-lite",
 ):
@@ -53,8 +54,11 @@ def build_runtime_patch(
     registries = {r["server"] for r in app["properties"]["configuration"].get("registries", [])}
     if not match or match[1] not in registries or match[2] != service:
         raise ValueError("Expected immutable image from the service's configured registry")
-    if enable_notifications and service != "backlog":
-        raise ValueError("Only Backlog has an agreed Module 6 source")
+    if enable_notifications and (
+        service not in {"backlog", "projects"}
+        or (service == "projects" and notification_source != "backlog")
+    ):
+        raise ValueError("Module 6 requires the explicitly selected Module 1 source")
     if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9._-]{0,99}", model):
         raise ValueError("Invalid Gemini model")
     template = copy.deepcopy(app["properties"]["template"])
@@ -63,9 +67,9 @@ def build_runtime_patch(
     if len(containers) not in {1, 2} or containers[0]["name"] != "api":
         raise ValueError("Unexpected container layout")
     if len(containers) == 2 and not (
-        service == "backlog"
+        service in {"backlog", "projects"}
         and containers[1].get("name") == "module6-worker"
-        and containers[1].get("command") == ["python", "-m", "backlog_service.module6_cli"]
+        and containers[1].get("command") == ["python", "-m", service + "_service.module6_cli"]
     ):
         raise ValueError("Unexpected sidecar; refusing to overwrite")
     api = containers[0]
@@ -108,13 +112,14 @@ def build_runtime_patch(
         }
         env["CODE_REVIEW_ENABLED"] = {"name": "CODE_REVIEW_ENABLED", "value": "false"}
     api["image"] = image
+    template["containers"] = [api]
     if enable_notifications:
         env["MODULE6_SOURCE"] = {"name": "MODULE6_SOURCE", "value": "backlog"}
         env["MODULE6_KEY"] = {"name": "MODULE6_KEY", "secretRef": "module6-key"}
         worker = {
             "name": "module6-worker",
             "image": image,
-            "command": ["python", "-m", "backlog_service.module6_cli"],
+            "command": ["python", "-m", service + "_service.module6_cli"],
             "args": ["run", "--batch-size", "50", "--poll-seconds", "10"],
             "resources": {"cpu": 0.25, "memory": "0.5Gi"},
             "env": [
@@ -186,13 +191,15 @@ def main():
     image = os.environ["IMAGE_REFERENCE"]
     options = {
         "service": service,
-        "enable_notifications": service == "backlog",
+        "enable_notifications": service == "backlog"
+        or (service == "projects" and os.environ.get("MODULE6_ENABLED", "false").lower() == "true"),
+        "notification_source": os.environ.get("MODULE6_SOURCE") or None,
         "resend_from": os.environ.get("RESEND_FROM", ""),
         "model": os.environ.get("GEMINI_MODEL", "gemini-3.5-flash-lite"),
     }
     build_runtime_patch(before, image, **options)
     updates = {"gemini-api-key": os.environ["GEMINI_API_KEY"]}
-    if service == "backlog":
+    if options["enable_notifications"]:
         updates["module6-key"] = os.environ["MODULE6_KEY"]
     existing = azure(
         "rest",
@@ -234,7 +241,7 @@ def main():
                             "ready_revision": revision,
                             "image": image,
                             "gemini_enabled": True,
-                            "notifications_enabled": service == "backlog",
+                            "notifications_enabled": options["enable_notifications"],
                         }
                     )
                 )

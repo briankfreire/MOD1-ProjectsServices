@@ -53,10 +53,17 @@ tráfego HTTP e roda o CLI de entrega. A réplica mínima do Backlog passa de ze
 para um para que a fila continue sendo processada sem visitas ao site; há aumento
 de recursos em execução (worker de 0,25 vCPU/0,5 GiB, além da API).
 
-A fila de Projetos também tem migração aditiva própria. Seu envio permanece
-explicitamente desativado até acordar `MODULE6_SOURCE` com o receptor, pois o
-contrato não tem uma origem própria para Projetos/equipes. Isso não impede
-publicar o código ou usar as notificações internas existentes.
+A fila de Projetos tem migração aditiva própria e usa a mesma convenção de origem
+do Módulo 1: `source=backlog`, mantendo tipos de evento `project.*`. Para ativar,
+configure `MODULE6_ENABLED=true` e `MODULE6_SOURCE=backlog` nas Variables do
+Environment `demo`, e `MODULE6_KEY` nos Secrets. A origem e a ativação devem ser
+explícitas; sem essas variáveis, o envio continua desativado.
+
+O pipeline provisiona o segredo no próprio app e adiciona o container
+`module6-worker`, executando `projects_service.module6_cli` na mesma imagem da API.
+O worker usa somente o schema `projects`, não recebe ingress e mantém a réplica
+mínima em um. Seu recurso adicional é 0,25 vCPU/0,5 GiB. Nenhum evento histórico
+é reenviado automaticamente e a caixa de notificações interna mantém seu estado.
 
 O Bicep de apps descreve o bootstrap e as origens CORS. Depois de ativar recursos
 por release, não reaplique um bootstrap antigo sobre os apps sem incluir sua

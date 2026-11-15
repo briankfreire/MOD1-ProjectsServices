@@ -136,6 +136,90 @@ def test_projects_notifications_stay_off_without_agreed_source():
         )
 
 
+def test_projects_worker_uses_explicit_module1_source_and_own_schema():
+    helper = module()
+    before = app("projects")
+    patch = helper.build_runtime_patch(
+        before,
+        image("projects"),
+        service="projects",
+        enable_notifications=True,
+        notification_source="backlog",
+    )
+    template = patch["properties"]["template"]
+    api, worker = template["containers"]
+    api_env = {v["name"]: v for v in api["env"]}
+    worker_env = {v["name"]: v for v in worker["env"]}
+    assert api_env["MODULE6_ENABLED"]["value"] == "true"
+    assert api_env["MODULE6_SOURCE"]["value"] == "backlog"
+    assert worker["command"] == ["python", "-m", "projects_service.module6_cli"]
+    assert worker["image"] == image("projects") and "probes" not in worker
+    assert worker_env["DATABASE_SCHEMA"]["value"] == "projects"
+    assert worker_env["DATABASE_URL"]["secretRef"] == "database-url"
+    assert worker_env["MODULE6_KEY"]["secretRef"] == "module6-key"
+    assert set(worker_env) == {
+        "DATABASE_URL",
+        "DATABASE_SCHEMA",
+        "MODULE6_KEY",
+        "MODULE6_ENABLED",
+        "MODULE6_SOURCE",
+    }
+    assert template["scale"]["minReplicas"] == 1
+    assert api_env["CORS_ORIGINS"] == before["properties"]["template"]["containers"][0]["env"][2]
+    again = helper.build_runtime_patch(
+        {**before, "properties": {**before["properties"], "template": template}},
+        image("projects"),
+        service="projects",
+        enable_notifications=True,
+        notification_source="backlog",
+    )
+    assert len(again["properties"]["template"]["containers"]) == 2
+
+
+@pytest.mark.parametrize("source", ["github", "projects", "modulo1", ""])
+def test_projects_release_refuses_unselected_source(source):
+    with pytest.raises(ValueError):
+        module().build_runtime_patch(
+            app("projects"),
+            image("projects"),
+            service="projects",
+            enable_notifications=True,
+            notification_source=source,
+        )
+
+
+def test_identity_cannot_publish_project_wide_notifications():
+    with pytest.raises(ValueError):
+        module().build_runtime_patch(
+            app("identity"),
+            image("identity"),
+            service="identity",
+            enable_notifications=True,
+            notification_source="backlog",
+            resend_from="Example <noreply@ckenzo.me>",
+        )
+
+
+def test_disabling_projects_stops_its_worker_and_preserves_api_configuration():
+    helper = module()
+    before = app("projects")
+    enabled = helper.build_runtime_patch(
+        before,
+        image("projects"),
+        service="projects",
+        enable_notifications=True,
+        notification_source="backlog",
+    )
+    current = {**before, "properties": {**before["properties"], **enabled["properties"]}}
+    disabled = helper.build_runtime_patch(current, image("projects"), service="projects")
+    containers = disabled["properties"]["template"]["containers"]
+    assert [c["name"] for c in containers] == ["api"]
+    env = {v["name"]: v for v in containers[0]["env"]}
+    assert env["MODULE6_ENABLED"]["value"] == "false"
+    assert env["CORS_ORIGINS"] == before["properties"]["template"]["containers"][0]["env"][2]
+    assert env["DATABASE_URL"]["secretRef"] == "database-url"
+
+
 def test_identity_sender_and_gemini_are_backend_only_and_rsa_is_preserved():
     helper = module()
     before = app("identity")
@@ -185,20 +269,25 @@ def test_secret_patch_preserves_native_and_keyvault_secrets():
         helper.build_secret_patch(before, [], {"gemini-api-key": "synthetic"})
 
 
-def test_main_applies_scoped_secrets_before_revision_and_does_not_log_values(monkeypatch, capsys):
+@pytest.mark.parametrize("service", ["backlog", "projects"])
+def test_main_applies_scoped_secrets_before_revision_and_does_not_log_values(
+    monkeypatch, capsys, service
+):
     from contextlib import contextmanager
 
     helper = module()
-    current = app()
+    current = app(service)
     current["properties"]["provisioningState"] = "Succeeded"
     patches = []
     for name, value in {
         "AZURE_RESOURCE_GROUP": "mod1",
-        "AZURE_CONTAINER_APP": "mod1-backlog",
-        "IMAGE_REPOSITORY": "backlog",
-        "IMAGE_REFERENCE": image("backlog"),
+        "AZURE_CONTAINER_APP": "mod1-" + service,
+        "IMAGE_REPOSITORY": service,
+        "IMAGE_REFERENCE": image(service),
         "GEMINI_API_KEY": "synthetic-private-gemini",
         "MODULE6_KEY": "synthetic-private-module6",
+        "MODULE6_ENABLED": "true",
+        "MODULE6_SOURCE": "backlog",
         "GITHUB_RUN_ID": "123",
         "GITHUB_RUN_ATTEMPT": "1",
     }.items():
@@ -212,17 +301,17 @@ def test_main_applies_scoped_secrets_before_revision_and_does_not_log_values(mon
         return copy.deepcopy(current)
 
     def apply(url, payload):
-        assert "containerApps/mod1-backlog?" in url
+        assert "containerApps/mod1-" + service + "?" in url
         patches.append(copy.deepcopy(payload))
         for key, value in payload["properties"].items():
             current["properties"].setdefault(key, {}).update(copy.deepcopy(value))
         if "template" in payload["properties"]:
             current["properties"].update(
-                latestRevisionName="mod1-backlog--rel-123-1",
-                latestReadyRevisionName="mod1-backlog--rel-123-1",
+                latestRevisionName="mod1-" + service + "--rel-123-1",
+                latestReadyRevisionName="mod1-" + service + "--rel-123-1",
             )
             current["properties"]["configuration"]["ingress"]["fqdn"] = (
-                "mod1-backlog.example.azurecontainerapps.io"
+                "mod1-" + service + ".example.azurecontainerapps.io"
             )
 
     @contextmanager
@@ -238,7 +327,11 @@ def test_main_applies_scoped_secrets_before_revision_and_does_not_log_values(mon
     helper.main()
     assert [set(p["properties"]) for p in patches] == [{"configuration"}, {"template"}]
     result = json.loads(capsys.readouterr().out)
-    assert result["ready_revision"] == "mod1-backlog--rel-123-1" and result["notifications_enabled"]
+    assert result["ready_revision"] == "mod1-" + service + "--rel-123-1"
+    assert result["notifications_enabled"]
+    assert "module6-key" in {
+        v["name"] for v in patches[0]["properties"]["configuration"]["secrets"]
+    }
     assert not any(
         value in str(result)
         for value in ["synthetic-private-gemini", "synthetic-private-module6", "private-native"]
