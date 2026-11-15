@@ -1,9 +1,9 @@
-# Contrato HTTP de Projetos — 0.5.0
+# Contrato HTTP de Projetos — 0.6.0
 
 O contrato atualizado está em [remaining-user-stories.md](remaining-user-stories.md),
 incluindo metadados, ciclo de vida, equipes, concessões, alocações, recomendações e
-notificações. Versão preparada para publicação; disponibilidade depende de deploy
-verificado. O conjunto de contratos usa Identidade 0.4.0 e Backlog 0.4.0.
+notificações. A versão 0.6.0 está publicada em produção com Identidade 0.5.0 e
+Backlog 0.5.0. Veja [entrega e limites de validação](final-delivery.md).
 
 ## Autenticação e respostas
 

@@ -1,7 +1,7 @@
 # Exclusão de projetos — contrato para o Módulo 2
 
-Contrato da versão 0.5.0. O Swagger identifica a versão efetivamente em execução
-no ambiente consultado; confira também a release correspondente no GitHub.
+Contrato preservado na versão 0.6.0, publicada em 15/11/2026. O Swagger identifica
+a versão efetivamente em execução; confira [o commit e o deploy](final-delivery.md).
 O Swagger é gerado a partir da mesma implementação.
 
 ## Requisição

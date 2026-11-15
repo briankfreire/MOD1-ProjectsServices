@@ -1,13 +1,16 @@
 # ProjectServices
 
-Versão `0.5.0` preparada para release SemVer; publicação e deploy exigem suas
-próprias evidências. Contratos novos usam Identidade 0.4.0 e Backlog 0.4.0.
+Versão `0.6.0` publicada em produção em 15/11/2026, integrada a Identidade
+0.5.0 e Backlog 0.5.0. [Registro da entrega e validações](docs/final-delivery.md).
 
 Projetos com escopo, orçamento, datas, requisitos e ciclo de vida; papéis
 personalizados, equipes, concessões com expiração, alocações e recomendações com
 aprovação humana. Aprovar equipes entrega notificações internas por destinatário,
-com leitura privada idempotente. E-mail e validação com um provider real continuam
-pendentes. IA real permanece desabilitada.
+com leitura privada idempotente. Gemini real está configurado em produção com
+`gemini-3.5-flash-lite`; os cinco tipos de recomendação tiveram chamadas reais
+validadas com dados sintéticos. A validação completa dos fluxos de IA continua
+por cenário. Projetos não envia e-mail de aprovação de equipes; a entrega interna
+e o [aviso externo ao Módulo 6](docs/module6-notifications.md) são independentes.
 
 Contrato atual, limites, segurança, migração e notificações:
 [docs/remaining-user-stories.md](docs/remaining-user-stories.md).
@@ -56,11 +59,12 @@ integrações externas reais. Nunca apontar testes destrutivos para Neon ou prod
 - [Papéis e colaboração](docs/collaboration.md).
 - [Arquitetura e transações](docs/architecture.md).
 - [Evidências e limites de validação](docs/verification.md).
-- [Operação Azure](docs/deploy-azure.md) e [banco Neon](docs/database-neon.md),
-  sem alterações externas nesta etapa.
+- [Operação Azure](docs/deploy-azure.md) e [banco Neon](docs/database-neon.md).
+- [Gemini real e limites](docs/gemini.md).
+- [Entrega publicada em 15/11/2026](docs/final-delivery.md).
 
 Frontend, Identidade e Backlog continuam em repositórios separados. Cada commit
 deste trabalho inclui Brian Freire como coautor. Documentação de produto não
 depende de instruções ou planos locais.
 
-Integração optativa: [notificações para o Módulo 6](docs/module6-notifications.md), com fila persistente e worker próprio.
+Integração ativa em produção: [notificações para o Módulo 6](docs/module6-notifications.md), com fila persistente e worker próprio, `source=backlog` e tipos `project.*`. Sem replay histórico ou avisos globais.

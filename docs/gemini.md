@@ -1,6 +1,6 @@
 # Gemini no serviço de Projetos
 
-O candidato local 0.6.0 oferece Gemini como infraestrutura opcional das cinco
+A versão 0.6.0 publicada oferece Gemini como infraestrutura das cinco
 recomendações existentes. O frontend continua usando as APIs; a chave existe
 somente no ambiente privado do backend. Nenhuma configuração real ou segredo
 faz parte desta documentação ou dos testes.
@@ -94,3 +94,12 @@ foi alterado. Isso não valida todas as US de IA nem a disponibilidade futura.
 Contrato oficial de referência: [generateContent](https://ai.google.dev/api/generate-content),
 [modelo](https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite) e
 [preços e quotas](https://ai.google.dev/gemini-api/docs/pricing).
+
+## Configuração de produção — 15/11/2026
+
+A versão publicada está configurada com `AI_PROVIDER=gemini`,
+`AI_SIMULATED=false` e `GEMINI_MODEL=gemini-3.5-flash-lite`. A chave fica somente
+nos segredos do backend. Chamadas reais dos sete tipos, somando Identidade,
+Projetos e Backlog, retornaram HTTP 200 com contexto sintético autorizado.
+Essa evidência do transporte é separada da validação completa dos fluxos pelo
+navegador e da qualidade de cada cenário. Veja [a entrega publicada](final-delivery.md).
