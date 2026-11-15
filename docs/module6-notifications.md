@@ -26,10 +26,14 @@ HTTP em loopback com porta explícita permite simulação local.
 | `MODULE6_ENABLED` | `false` por padrão. Controla captura de eventos e execução do dispatcher |
 | `MODULE6_KEY` | Segredo do backend, configurado somente no ambiente privado ou referência de secret do Azure |
 | `MODULE6_ENDPOINT` | Endpoint acima; normalmente não precisa ser definido |
-| `MODULE6_SOURCE` | Sem padrão; exigir um valor do enum aceito e uma convenção acordada com o Módulo 6 |
+| `MODULE6_SOURCE` | Sem padrão na aplicação; nesta instalação, `backlog` representa os eventos compartilhados do Módulo 1 |
 | `DATABASE_URL`, `DATABASE_SCHEMA` | As mesmas configurações restritas ao schema deste serviço |
 
-O enum publicado não tem `projects`, `auth` ou `modulo1`. Por isso, Projetos exige `MODULE6_SOURCE` explícito para habilitar a integração. Não atribua eventos a outro módulo: confirme a convenção com o receptor. Os testes usam `backlog` apenas em um ambiente sintético.
+O enum publicado não tem `projects`, `auth` ou `modulo1`. A convenção escolhida
+para esta instalação usa `source=backlog` também para os eventos de projetos e
+equipes do Módulo 1. Os tipos `project.*` e o prefixo `mod1:projects:` mantêm
+a identificação do produtor. Essa escolha não adiciona um novo valor ao enum
+do receptor. A aplicação continua exigindo origem explícita para habilitar envio.
 
 A chave fica fora de Git, imagens, comandos compartilhados e configuração do
 frontend. Não cole o valor em comandos de histórico do shell. Configure a API e
@@ -112,7 +116,7 @@ Garanta permissão de DML da role de runtime na nova tabela
 Desativada, a captura não consulta essa tabela, preservando o funcionamento de
 instalações ainda sem migração.
 
-Configure a chave privada e a origem acordada, então habilite captura e worker.
+Configure a chave privada e `MODULE6_SOURCE=backlog`, então habilite captura e worker.
 No ambiente virtual instalado pelo projeto:
 
 ```console
@@ -163,7 +167,8 @@ são sintéticos, sem abrir banco remoto nem enviar eventos ao BFF real.
 As falhas simuladas representam a política do nosso emissor; não comprovam como
 o BFF real deduplica, persiste ou reage a esses casos. Para ativar, confirmar com
 o Módulo 6 o tratamento de `event_id` repetido, timeout após persistência, retenção
-e visibilidade de eventos por projeto. Também é necessário acordar o identificador de origem para eventos de Projetos/equipes.
+e visibilidade de eventos por projeto. A origem configurada nesta instalação é
+`backlog`, com os eventos de Projetos identificados pelo campo `type`.
 
 Verificação local em 15/11/2026: 51 testes específicos da integração
 aprovados; suíte completa com 338 aprovados e 11 ignorados.
@@ -172,7 +177,8 @@ O caso HTTP com o checkout separado do Backlog passou em execução adicional
 com `BACKLOG_SERVICE_PATH` configurado; os demais casos ignorados dependem de
 PostgreSQL local descartável.
 
-Na configuração de produ??o preparada pelo workflow, o worker do Backlog usa
-um container separado dentro do mesmo Container App, com réplica mínima um.
-O processo não recebe ingress, compartilha a imagem da API e acessa somente
-o schema do Backlog. Veja [operação Azure](deploy-azure.md).
+O workflow de Projetos recebe as variáveis `MODULE6_ENABLED=true` e
+`MODULE6_SOURCE=backlog` do Environment `demo`, e `MODULE6_KEY` como secret.
+O worker de Projetos usa um container separado dentro do próprio Container App,
+com réplica mínima um. O processo não recebe ingress, compartilha a imagem da API
+e acessa somente o schema `projects`. Veja [operação Azure](deploy-azure.md).

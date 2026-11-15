@@ -94,6 +94,9 @@ jobs:
         env:
           IMAGE_REFERENCE: ${{ steps.image.outputs.reference }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          MODULE6_KEY: ${{ secrets.MODULE6_KEY }}
+          MODULE6_ENABLED: ${{ vars.MODULE6_ENABLED }}
+          MODULE6_SOURCE: ${{ vars.MODULE6_SOURCE }}
           AUTH_API_URL: ${{ vars.AUTH_API_URL }}
           BACKLOG_API_URL: ${{ vars.BACKLOG_API_URL }}
         shell: bash

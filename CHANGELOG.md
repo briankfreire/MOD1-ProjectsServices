@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — notificações de projetos e equipes
+
+- Ativação explícita no pipeline com `source=backlog` para o Módulo 1 e tipos
+  `project.*` para criação, ciclo de vida e aprovação de equipes.
+- Worker próprio no app de Projetos, sem ingress e com acesso apenas ao schema
+  `projects`; segredos, CORS e notificações internas preservados.
+
 ## 0.6.0 — 2026-11-15
 
 - Atualiza opentelemetry-api para 1.45.2 no lock, corrigindo GHSA-mf5v-w3w3-f6cg.
