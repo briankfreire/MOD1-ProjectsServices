@@ -1,7 +1,9 @@
-# Projetos, equipes e recomendações — contrato 0.5.0
+# Projetos, equipes e recomendações — contrato 0.6.0
 
-Este contrato descreve a versão 0.5.0 preparada para publicação. Não comprova
-deploy ou disponibilidade de serviços externos. IA real permanece desabilitada.
+Este contrato descreve a versão 0.6.0 publicada em 15/11/2026. Gemini real está
+configurado em produção com `gemini-3.5-flash-lite`, e os cinco tipos de
+recomendação tiveram chamadas reais validadas com dados sintéticos.
+Veja [a entrega, as evidências e seus limites](final-delivery.md).
 
 ## Projetos e ciclo de vida
 
@@ -134,7 +136,7 @@ cada tipo. Treinamento sugere tópicos, sem inventar URLs de cursos.
 
 ### Acessos sem uso — observação conservadora
 
-US-039 tem fundação local de atividade autorizada observada. Requisições com
+US-039 usa atividade autorizada observada pelo próprio serviço. Requisições com
 acesso de leitura ao projeto registram atividade do próprio ator; `/access/v2`
 inclui os consumidores do Backlog. Tentativas autorizadas contam de forma
 conservadora, mesmo que uma operação posterior falhe. O registro usa relógio do
@@ -156,16 +158,20 @@ não invalidam propostas de outros tipos que não utilizam telemetria.
 
 Observações operacionais são removidas com a exclusão explícita de um projeto
 vazio e não transformam uma simples consulta em dado de negócio impeditivo.
-O provedor de IA real e o comportamento em produção ainda não foram validados.
+O adaptador real de análise de revogação foi validado com dados sintéticos.
+Isso não equivale a validar uma janela completa de inatividade em produção;
+a decisão continua humana e depende da observação efetivamente disponível.
 
 O adapter opcional faz POST `{AI_BASE_URL}/generate` com
 `{schema_version:1,kind,model,context}` e espera
 `{summary,justification,evidence,suggestions}`. AI_BASE_URL ausente desativa chamadas.
 AI_API_KEY fica só no backend; timeout 30s, contexto até 128 KiB, resposta até
 64 KiB, até 50 sugestões e nenhuma repetição automática de geração paga.
-AI_SIMULATED=true só aceita loopback e aparece como simulated=true. Provider real,
-qualidade do modelo e chamadas externas continuam pendentes de configuração e
-validação autorizadas; testes com transporte controlado não demonstram IA real.
+`AI_SIMULATED=true` só aceita loopback e aparece como `simulated=true` no provedor
+HTTP genérico. Em produção, `AI_PROVIDER=gemini` seleciona o
+[adaptador Gemini](gemini.md), com chave somente no backend e
+`AI_SIMULATED=false`. As chamadas reais dos cinco tipos foram verificadas;
+qualidade e fluxos completos continuam exigindo evidências próprias por cenário.
 
 ## Notificações internas de aprovação de equipe — US-059
 
@@ -183,9 +189,10 @@ recebem o mesmo 404. As rotas exigem sessão atual e respondem no-store. Mensage
 genéricas não contêm custos, nomes de candidatos, saídas privadas de IA ou tokens.
 
 Outbox de teams entregue usa status delivered_in_app e destinatários explícitos.
-Outras espécies mantêm o registro pendente, sem promessa de envio externo.
-Nenhum SMTP é chamado: **envio por e-mail permanece pendente**, distinto da caixa
-interna funcional. Aprovações históricas com outbox genérica não recebem mensagens
+Outras espécies mantêm o registro pendente nessa outbox interna.
+A integração externa com o [Módulo 6](module6-notifications.md) tem fila própria,
+está ativa e inclui `project.teams.approved`; não converte a outbox interna em
+entrega de e-mail. **Projetos não envia e-mail de aprovação de equipes**. Aprovações históricas com outbox genérica não recebem mensagens
 retroativas inventadas, pois seus destinatários não foram persistidos na época.
 
 ## Migração e operação local
@@ -203,4 +210,6 @@ credencial administrativa apropriada; runtime recebe só permissões necessária
 no schema próprio. Reversão de aplicação requer versão compatível com os novos
 campos; não há downgrade destrutivo automático. Testes de migração/concorrência
 usam SQLite temporário e schemas aleatórios em PostgreSQL descartável loopback.
-Neon, Azure, produção, SMTP e provedores pagos não foram modificados nesta etapa.
+A preparação de produção e o deploy foram concluídos em 15/11/2026;
+[registro da entrega](final-delivery.md). Os comandos desta seção são para novas
+instalações ou atualizações administrativas explícitas.

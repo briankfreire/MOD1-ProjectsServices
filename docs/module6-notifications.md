@@ -5,8 +5,12 @@ Integração optativa entre backends, com uma fila persistente no schema própri
 transação. Um worker separado envia somente eventos confirmados. A disponibilidade
 do receptor não participa da transação HTTP de criação ou atualização.
 
-O código está preparado para ativação explícita. A implementação local e os testes
-com receptor sintético não significam que notificações reais estejam implantadas.
+Em 15/11/2026, a integração está ativa em produção: captura habilitada,
+`source=backlog` e worker próprio Running/ready. Projetos distingue seus avisos
+pelos tipos `project.*` e pelo prefixo `mod1:projects:`. Um aviso real de teste
+com escopo de projeto foi aceito pelo Módulo 6 com HTTP 200. Não houve inspeção
+visual da Central nem teste do percurso completo do outbox de negócio de produção;
+nenhum evento histórico foi reenviado. [Entrega e evidências](final-delivery.md).
 
 ## Contrato e configuração
 
@@ -165,8 +169,9 @@ o POST do worker real e confirma a persistência da entrega. Credenciais e dados
 são sintéticos, sem abrir banco remoto nem enviar eventos ao BFF real.
 
 As falhas simuladas representam a política do nosso emissor; não comprovam como
-o BFF real deduplica, persiste ou reage a esses casos. Para ativar, confirmar com
-o Módulo 6 o tratamento de `event_id` repetido, timeout após persistência, retenção
+o BFF real deduplica, persiste ou reage a esses casos. A política conservadora de
+resultados incertos continua: confirmar com o Módulo 6 o tratamento de
+`event_id` repetido, timeout após persistência, retenção
 e visibilidade de eventos por projeto. A origem configurada nesta instalação é
 `backlog`, com os eventos de Projetos identificados pelo campo `type`.
 

@@ -1,5 +1,11 @@
 # Contrato de exclusão para o Módulo 2 — 31/10/2026
 
+## Estado publicado — 15/11/2026
+
+O [registro de entrega](final-delivery.md) reúne versões, execuções de deploy e
+limites atuais. As seções datadas abaixo preservam a validação histórica de
+cada etapa e não descrevem, isoladamente, a produção atual.
+
 O teste do OpenAPI reproduziu a falta do schema de erro antes da correção e
 passou depois. Agora verifica Bearer, ausência de corpo na requisição e no
 sucesso 204, além dos erros 401/403/404/409/422/503 com `detail` textual.

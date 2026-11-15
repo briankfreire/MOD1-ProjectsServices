@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — notificações de projetos e equipes
+## Ativação de notificações de projetos e equipes — 2026-11-15 (0.6.0)
 
 - Ativação explícita no pipeline com `source=backlog` para o Módulo 1 e tipos
   `project.*` para criação, ciclo de vida e aprovação de equipes.
@@ -8,6 +8,9 @@
   `projects`; segredos, CORS e notificações internas preservados.
 
 ## 0.6.0 — 2026-11-15
+
+Publicada em produção. [Commit, deploy e evidências](docs/final-delivery.md).
+Entradas anteriores preservam o estado histórico de suas próprias datas.
 
 - Atualiza opentelemetry-api para 1.45.2 no lock, corrigindo GHSA-mf5v-w3w3-f6cg.
 - Captura transacional de eventos confirmados em fila externa persistente, com o UUID do histórico/evento e schema exclusivo.
