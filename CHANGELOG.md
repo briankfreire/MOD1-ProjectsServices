@@ -2,6 +2,7 @@
 
 ## 0.6.0 — 2026-11-15
 
+- Atualiza opentelemetry-api para 1.45.2 no lock, corrigindo GHSA-mf5v-w3w3-f6cg.
 - Captura transacional de eventos confirmados em fila externa persistente, com o UUID do histórico/evento e schema exclusivo.
 - Worker optativo com consulta de estado, lotes limitados, prazo total de envio, leases e recuperação conservadora de resultados incertos.
 - Chave somente no backend, sem encaminhar Bearer; ativação e migração explícitas. Publicação por pipeline incremental; ativação externa segue os limites documentados.
