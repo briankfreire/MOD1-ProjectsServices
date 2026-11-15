@@ -132,3 +132,14 @@ próprias. Migrações são explícitas, sem DDL no startup. Dados profissionais
 entram em recomendações pelo diretório opt-in. Uso real de permissões não é
 coletado: access_usage permanece unknown, sem inferir ociosidade a partir da idade
 do vínculo. Provider real, SMTP e deploy seguem fora desta validação.
+
+## Entrega externa de notificações
+
+`notifications_domain.py` define a seleção e o payload mínimo dos eventos;
+`notification_delivery.py` coordena o dispatcher por portas, sem SQL ou HTTP.
+`notification_repository.py` captura eventos na transação existente e controla
+a outbox externa no schema próprio. `module6_client.py` implementa o transporte;
+`module6_cli.py` compõe o worker independente. O histórico continua sendo a
+origem do UUID; a reserva e a atualização do resultado têm transações curtas,
+fora do POST. A API não precisa acessar o receptor para atender uma operação.
+Veja o [contrato e a operação do Módulo 6](module6-notifications.md).

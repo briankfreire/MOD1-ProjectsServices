@@ -62,3 +62,5 @@ integrações externas reais. Nunca apontar testes destrutivos para Neon ou prod
 Frontend, Identidade e Backlog continuam em repositórios separados. Cada commit
 deste trabalho inclui Brian Freire como coautor. Documentação de produto não
 depende de instruções ou planos locais.
+
+Integração optativa: [notificações para o Módulo 6](docs/module6-notifications.md), com fila persistente e worker próprio.

@@ -93,6 +93,7 @@ jobs:
         if: github.event_name == 'push' || inputs.deploy_revision
         env:
           IMAGE_REFERENCE: ${{ steps.image.outputs.reference }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           AUTH_API_URL: ${{ vars.AUTH_API_URL }}
           BACKLOG_API_URL: ${{ vars.BACKLOG_API_URL }}
         shell: bash
@@ -100,19 +101,4 @@ jobs:
           set -euo pipefail
           az extension add --name containerapp --upgrade --only-show-errors
           [[ "$AUTH_API_URL" =~ ^https://[a-z0-9.-]+$ && "$BACKLOG_API_URL" =~ ^https://[a-z0-9.-]+$ ]]
-          revision=$(az containerapp update --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
-            --image "$IMAGE_REFERENCE" --set-env-vars \
-            "AUTH_API_BASE_URL=$AUTH_API_URL" "BACKLOG_API_BASE_URL=$BACKLOG_API_URL" \
-            "AUTH_SESSION_CHECK_ENABLED=true" --query properties.latestRevisionName --output tsv)
-          host=$(az containerapp show --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" --query properties.configuration.ingress.fqdn --output tsv)
-          [[ "$host" =~ ^[a-z0-9.-]+\.azurecontainerapps\.io$ ]]
-          for attempt in $(seq 1 60); do
-            ready=$(az containerapp show --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" --query properties.latestReadyRevisionName --output tsv)
-            if curl --fail --silent --show-error --max-time 15 "https://$host/health/ready" >/dev/null && [[ "$ready" == "$revision" ]]; then
-              printf 'Ready revision: %s\nURL: https://%s\n' "$revision" "$host" >> "$GITHUB_STEP_SUMMARY"
-              exit 0
-            fi
-            sleep 5
-          done
-          echo 'New revision did not become ready; inspect Container Apps system logs.' >&2
-          exit 1
+          python scripts/azure_runtime_config.py

@@ -176,9 +176,16 @@ class AIClient:
 
     def __init__(self, settings: Settings, *, client: httpx.Client | None = None) -> None:
         self.settings = settings
-        self.client = client or httpx.Client(timeout=30, follow_redirects=False)
+        self.client = client or httpx.Client(
+            timeout=30, follow_redirects=False, trust_env=settings.ai_provider != "gemini"
+        )
 
     def generate(self, kind: str, context: dict[str, Any]) -> dict[str, Any]:
+        if self.settings.ai_provider == "gemini":
+            from projects_service.gemini_adapter import GeminiAdapter
+
+            return GeminiAdapter(self.settings, client=self.client).generate(kind, context)
+
         import json
         from urllib.parse import urlsplit
 

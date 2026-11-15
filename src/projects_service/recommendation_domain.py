@@ -13,7 +13,81 @@ class AIResponse(BaseModel):
     summary: str = Field(min_length=1, max_length=2000)
     justification: str = Field(min_length=1, max_length=4000)
     evidence: list[Text] = Field(min_length=1, max_length=50)
-    suggestions: list[dict[str, object]] = Field(min_length=1, max_length=50)
+    suggestions: list[dict[str, object]] = Field(max_length=50)
+
+
+class Suggestion(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+
+class RoleSuggestion(Suggestion):
+    user_id: Text
+    roles: list[Text] = Field(min_length=1, max_length=50)
+
+
+class RevocationSuggestion(Suggestion):
+    user_id: Text
+    reason: Text
+
+
+class ExistingTeamSuggestion(Suggestion):
+    team_id: Text
+    roles: list[Text] = Field(min_length=1, max_length=50)
+
+
+class NewTeamSuggestion(Suggestion):
+    name: str = Field(min_length=1, max_length=120)
+    user_ids: list[Text] = Field(min_length=1, max_length=100)
+    roles: list[Text] = Field(min_length=1, max_length=50)
+
+
+class SkillSuggestion(Suggestion):
+    skill: Text
+    user_ids: list[Text] = Field(max_length=100)
+    gap: bool
+
+
+class TrainingSuggestion(Suggestion):
+    user_id: Text
+    topics: list[Annotated[str, Field(min_length=1, max_length=200)]] = Field(
+        min_length=1, max_length=20
+    )
+
+
+class StructuredResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    summary: str = Field(min_length=1, max_length=2000)
+    justification: str = Field(min_length=1, max_length=4000)
+    evidence: list[Text] = Field(min_length=1, max_length=50)
+
+
+class RoleResponse(StructuredResponse):
+    suggestions: list[RoleSuggestion] = Field(max_length=50)
+
+
+class RevocationResponse(StructuredResponse):
+    suggestions: list[RevocationSuggestion] = Field(max_length=50)
+
+
+class TeamResponse(StructuredResponse):
+    suggestions: list[ExistingTeamSuggestion | NewTeamSuggestion] = Field(max_length=50)
+
+
+class SkillResponse(StructuredResponse):
+    suggestions: list[SkillSuggestion] = Field(max_length=50)
+
+
+class TrainingResponse(StructuredResponse):
+    suggestions: list[TrainingSuggestion] = Field(max_length=50)
+
+
+RESPONSE_MODELS: dict[str, type[StructuredResponse]] = {
+    "roles": RoleResponse,
+    "access_revocation": RevocationResponse,
+    "teams": TeamResponse,
+    "skills_map": SkillResponse,
+    "training": TrainingResponse,
+}
 
 
 def valid_suggestions(

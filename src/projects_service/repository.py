@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from projects_service.domain import Metadata, Project, ProjectPage, ProjectPatch
 from projects_service.models import EventRecord, ProjectRecord
+from projects_service.notification_repository import capture
 
 
 def to_project(record: ProjectRecord) -> Project:
@@ -37,9 +38,10 @@ class ProjectRepository:
         try:
             self.session.add(record)
             self.session.flush()
+            event_id = uuid4()
             self.session.add(
                 EventRecord(
-                    id=uuid4(),
+                    id=event_id,
                     project_id=record.id,
                     actor_id=record.owner_id,
                     action="project.created",
@@ -48,6 +50,7 @@ class ProjectRepository:
                     created_at=record.created_at,
                 )
             )
+            capture(self.session, event_id, record.id, "project.created", {}, record.created_at)
             self.session.commit()
             return to_project(record)
         except Exception:
