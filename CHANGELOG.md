@@ -1,6 +1,13 @@
 # Changelog
 
-## 0.6.0 — candidato local, 2026-11-03
+## 0.6.0 — 2026-11-15
+
+- Captura transacional de eventos confirmados em fila externa persistente, com o UUID do histórico/evento e schema exclusivo.
+- Worker optativo com consulta de estado, lotes limitados, prazo total de envio, leases e recuperação conservadora de resultados incertos.
+- Chave somente no backend, sem encaminhar Bearer; ativação e migração explícitas. Publicação por pipeline incremental; ativação externa segue os limites documentados.
+- Contrato, catálogo de eventos e operação em [notificações do Módulo 6](docs/module6-notifications.md).
+
+### Gemini
 
 - Provedor Gemini opcional no backend para roles, access_revocation, teams,
   skills_map e training, com schema tipado por finalidade e prompts em português.
@@ -12,7 +19,7 @@
   sem efeitos. Validações de IDs/evidências/opt-in e rechecagens transacionais
   de contexto/permissões continuam no servidor.
 - Configuração e testes controlados em [docs/gemini.md](docs/gemini.md).
-  Candidato local sem publicação/deploy; testes não comprovam IA real ou quota gratuita.
+  As chamadas reais do adaptador foram verificadas; testes não prometem quota gratuita nem qualidade de todos os cenários.
 
 ## 0.5.0 — preparação de release, 2026-11-01
 

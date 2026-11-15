@@ -66,13 +66,30 @@ Validação local: `python -m pytest`, `python -m ruff check src tests`,
 `python -m ruff format --check src tests` e `python -m mypy`. Os testes
 `tests/test_gemini.py` usam exclusivamente chaves/dados sintéticos, transporte
 controlado e HTTP loopback; não confirmam qualidade do modelo, quota ou chamada
-Gemini real. A validação de IA real permanece pendente para execução explícita
-com dados sintéticos e chave privada. Não houve push, merge ou deploy.
+Gemini real. A rodada de 03/11 foi controlada; a verificação autorizada posterior
+está registrada abaixo. Não houve push, merge ou deploy.
 
 Evidência em 03/11/2026: suíte completa com 271 aprovados e 11 pulados
 (10 dependem de PostgreSQL loopback descartável e um de `BACKLOG_SERVICE_PATH`).
 Os 70 casos Gemini passaram; Ruff, verificação de formato e mypy (25 módulos)
 passaram. Metadados da instalação local e OpenAPI conferidos como 0.6.0.
+
+## Compatibilidade e chamadas reais — 14/11/2026
+
+O adaptador envia uma cópia do schema sem `maxItems` nos arrays, inclusive em
+definições e alternativas de equipes. Esse ajuste evita o HTTP 400 observado com
+o schema limitado de Identidade. Tipos, campos obrigatórios, enums, mínimos e
+limites de texto são preservados; os modelos Pydantic originais continuam
+recusando respostas acima dos limites. Os 86 testes Gemini passaram, incluindo
+evidências no limite de 50 e acima dele e papéis aninhados acima do máximo.
+As cinco regressões de requisição falharam antes da correção e passaram depois.
+
+Os cinco tipos (`roles`, `access_revocation`, `teams`, `skills_map`, `training`)
+obtiveram HTTP 200 no endpoint oficial com `gemini-3.5-flash-lite`, usando contexto
+sintético sem candidatos elegíveis. As propostas vieram vazias e com evidências
+autorizadas. `roles` recebeu primeiro HTTP 503 do Google; uma repetição manual
+limitada passou, sem adicionar retries ao produto. Nenhum banco ou permissão
+foi alterado. Isso não valida todas as US de IA nem a disponibilidade futura.
 
 Contrato oficial de referência: [generateContent](https://ai.google.dev/api/generate-content),
 [modelo](https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite) e

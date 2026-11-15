@@ -106,6 +106,45 @@ def test_gemini_empty_suggestions_are_representable(kind):
         assert AIClient(settings(), client=c).generate(kind, {})["suggestions"] == []
 
 
+@pytest.mark.parametrize("kind", ["roles", "access_revocation", "teams", "skills_map", "training"])
+def test_gemini_avoids_bounded_array_schema_rejected_by_provider(kind):
+    def handler(request):
+        schema = json.loads(request.content)["generationConfig"]["responseFormat"]["text"]["schema"]
+        assert '"maxItems"' not in json.dumps(schema)
+        assert schema["properties"]["summary"]["maxLength"] == 2000
+        assert schema["properties"]["evidence"]["minItems"] == 1
+        return httpx.Response(200, json=envelope())
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        assert AIClient(settings(), client=client).generate(kind, {})["suggestions"] == []
+
+
+@pytest.mark.parametrize("kind", ["roles", "access_revocation", "teams", "skills_map", "training"])
+@pytest.mark.parametrize("count", [50, 51])
+def test_gemini_keeps_local_evidence_limit(kind, count):
+    payload = {**output(), "evidence": ["project:synthetic"] * count}
+    with httpx.Client(
+        transport=httpx.MockTransport(lambda _: httpx.Response(200, json=envelope(payload)))
+    ) as client:
+        adapter = AIClient(settings(), client=client)
+        if count == 51:
+            with pytest.raises(AccessError) as error:
+                adapter.generate(kind, {})
+            assert error.value.status == 503
+        else:
+            assert len(adapter.generate(kind, {})["evidence"]) == count
+
+
+def test_gemini_keeps_nested_role_count_limit():
+    payload = output([{"user_id": "known", "roles": ["developer"] * 51}])
+    with httpx.Client(
+        transport=httpx.MockTransport(lambda _: httpx.Response(200, json=envelope(payload)))
+    ) as client:
+        with pytest.raises(AccessError) as error:
+            AIClient(settings(), client=client).generate("roles", {})
+        assert error.value.status == 503
+
+
 @pytest.mark.parametrize(
     "updates",
     [

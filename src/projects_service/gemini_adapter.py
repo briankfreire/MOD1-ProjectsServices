@@ -46,6 +46,19 @@ KIND_INSTRUCTIONS = {
 }
 
 
+def _response_schema(value: Any) -> Any:
+    """Avoid Gemini's bounded-array grammar expansion; validate full limits locally."""
+    if isinstance(value, dict):
+        return {
+            key: _response_schema(child)
+            for key, child in value.items()
+            if not (key == "maxItems" and value.get("type") == "array")
+        }
+    if isinstance(value, list):
+        return [_response_schema(child) for child in value]
+    return value
+
+
 def reject_nonfinite(value: str) -> None:
     raise ValueError("Invalid JSON constant")
 
@@ -77,7 +90,7 @@ class GeminiAdapter:
                 "responseFormat": {
                     "text": {
                         "mimeType": "APPLICATION_JSON",
-                        "schema": model.model_json_schema(),
+                        "schema": _response_schema(model.model_json_schema()),
                     }
                 },
             },

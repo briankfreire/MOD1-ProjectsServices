@@ -40,7 +40,11 @@ def create_database_engine(settings: Settings) -> Engine:
             hide_parameters=True,
         )
         target = settings.database_schema
-    return engine.execution_options(schema_translate_map={"projects": target})
+    return engine.execution_options(
+        schema_translate_map={"projects": target},
+        module6_enabled=settings.module6_enabled,
+        module6_source=settings.module6_source,
+    )
 
 
 def init_schema(engine: Engine, schema: str) -> None:

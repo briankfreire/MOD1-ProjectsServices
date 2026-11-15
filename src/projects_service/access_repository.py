@@ -12,6 +12,7 @@ from sqlalchemy.sql.elements import ColumnElement
 from projects_service.access_domain import AccessError, Invitation, Member, utc
 from projects_service.domain import Metadata, Project, ProjectPage, ProjectPatch
 from projects_service.models import EventRecord, InvitationRecord, MemberRecord, ProjectRecord
+from projects_service.notification_repository import capture
 from projects_service.repository import to_project
 
 
@@ -220,17 +221,19 @@ class AccessRepository:
     def event(
         self, project_id: UUID, actor: UUID, action: str, version: int, changes: dict[str, object]
     ) -> None:
+        event_id, now = uuid4(), datetime.now(UTC)
         self.session.add(
             EventRecord(
-                id=uuid4(),
+                id=event_id,
                 project_id=project_id,
                 actor_id=actor,
                 action=action,
                 version=version,
                 changes=json.loads(json.dumps(changes, default=str)),
-                created_at=datetime.now(UTC),
+                created_at=now,
             )
         )
+        capture(self.session, event_id, project_id, action, changes, now)
         self.session.flush()
 
     def creation_event(self, project: Project, actor: UUID) -> None:
