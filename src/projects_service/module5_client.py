@@ -42,11 +42,15 @@ class Module5Client:
         self.base_url = trusted_base_url(base_url)
         self.deadline_seconds = deadline_seconds
 
-    def feed(self) -> CurationResult:
-        return self._receive("GET", "/feed", ProviderFeed)
+    def feed(self, *, loop: asyncio.AbstractEventLoop | None = None) -> CurationResult:
+        return self._receive("GET", "/feed", ProviderFeed, loop=loop)
 
-    def query(self, token: str, pergunta: str) -> CurationResult:
-        return self._receive("POST", "/consultas", ProviderArticles, token=token, pergunta=pergunta)
+    def query(
+        self, token: str, pergunta: str, *, loop: asyncio.AbstractEventLoop | None = None
+    ) -> CurationResult:
+        return self._receive(
+            "POST", "/consultas", ProviderArticles, token=token, pergunta=pergunta, loop=loop
+        )
 
     def _receive(
         self,
@@ -56,9 +60,10 @@ class Module5Client:
         *,
         token: str | None = None,
         pergunta: str | None = None,
+        loop: asyncio.AbstractEventLoop | None,
     ) -> CurationResult:
         try:
-            content = asyncio.run(self._bounded_request(method, path, token, pergunta))
+            content = self._bounded_request(method, path, token, pergunta, loop)
             data = json.loads(
                 content.decode("utf-8"), parse_constant=reject_nonfinite, parse_float=finite_number
             )
@@ -66,13 +71,27 @@ class Module5Client:
         except (httpx.HTTPError, ValueError, RecursionError, TimeoutError):
             raise AccessError(503, "Curation service temporarily unavailable") from None
 
-    async def _bounded_request(
-        self, method: str, path: str, token: str | None, pergunta: str | None
+    def _bounded_request(
+        self,
+        method: str,
+        path: str,
+        token: str | None,
+        pergunta: str | None,
+        loop: asyncio.AbstractEventLoop | None,
     ) -> bytearray:
-        return await asyncio.wait_for(
-            self._request(method, path, token, pergunta),
-            timeout=self.deadline_seconds,
+        request = asyncio.wait_for(
+            self._request(method, path, token, pergunta), timeout=self.deadline_seconds
         )
+        if loop is not None:
+            # The API uses its shared loop and bounded DNS executor.
+            return asyncio.run_coroutine_threadsafe(request, loop).result()
+        standalone_loop = asyncio.new_event_loop()
+        try:
+            return standalone_loop.run_until_complete(request)
+        finally:
+            # wait_for completes transport cancellation. Close the loop without
+            # waiting for an OS DNS lookup that may still be running.
+            standalone_loop.close()
 
     async def _request(
         self, method: str, path: str, token: str | None, pergunta: str | None

@@ -1,5 +1,7 @@
+import asyncio
 from collections.abc import Callable, Iterator
 from datetime import datetime
+from functools import partial
 from typing import Annotated
 from uuid import UUID, uuid4
 
@@ -9,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from projects_service.access_service import AccessService
 from projects_service.collaboration_repository import CollaborationRepository
-from projects_service.module5_domain import CurationResult
+from projects_service.module5_client import Module5Client
 from projects_service.module5_service import CurationService
 from projects_service.repository import ProjectRepository
 from projects_service.security import AuthenticationRejected, SigningKeysUnavailable
@@ -84,11 +86,13 @@ def current_curation_actor(request: Request, credentials: Credentials) -> UUID:
 CurationActor = Annotated[UUID, Depends(current_curation_actor)]
 
 
-def curation_service(
+async def curation_service(
     request: Request, actor: CurationActor, credentials: Credentials
 ) -> CurationService:
     assert credentials is not None
     token = credentials.credentials
+    loop = asyncio.get_running_loop()
+    client: Module5Client = request.app.state.module5
 
     def read_project(user: UUID, project_id: UUID) -> None:
         # Exiting this read scope releases the connection before any remote I/O.
@@ -100,16 +104,12 @@ def curation_service(
         if verify_owner(request, token, require_online=True) != actor:
             raise authentication_required()
 
-    def search(pergunta: str) -> CurationResult:
-        result: CurationResult = request.app.state.module5.query(token, pergunta)
-        return result
-
     return CurationService(
         enabled=request.app.state.settings.module5_enabled,
         read_project=read_project,
         reauthenticate=reauthenticate,
-        fetch_feed=request.app.state.module5.feed,
-        search=search,
+        fetch_feed=partial(client.feed, loop=loop),
+        search=partial(client.query, token, loop=loop),
     )
 
 

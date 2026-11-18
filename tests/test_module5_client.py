@@ -1,4 +1,5 @@
 import json
+import socket
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -179,3 +180,52 @@ def test_query_deadline_covers_waiting_for_response_headers(module5_http):
     assert error.value.status == 503
     assert time.monotonic() - start < 1
     assert len(state["requests"]) == 1
+
+
+@pytest.fixture
+def delayed_resolver(monkeypatch):
+    started = threading.Event()
+    can_finish = threading.Event()
+    finished = threading.Event()
+    resolve = socket.getaddrinfo
+
+    def slow_resolver(host, *args, **kwargs):
+        if host not in {"localhost", b"localhost"}:
+            return resolve(host, *args, **kwargs)
+        started.set()
+        try:
+            can_finish.wait(timeout=1.5)
+            return resolve("127.0.0.1", *args, **kwargs)
+        finally:
+            finished.set()
+
+    monkeypatch.setattr(socket, "getaddrinfo", slow_resolver)
+    try:
+        yield started, can_finish, finished
+    finally:
+        can_finish.set()
+
+
+def test_query_deadline_returns_while_dns_is_pending_and_never_sends_post(
+    module5_http, delayed_resolver
+):
+    from projects_service.access_domain import AccessError
+    from projects_service.module5_client import Module5Client
+
+    url, state = module5_http
+    resolver_started, resolver_can_finish, resolver_finished = delayed_resolver
+    request_received = threading.Event()
+    state["on_curation"] = request_received.set
+    client = Module5Client(url.replace("127.0.0.1", "localhost"), deadline_seconds=0.35)
+    start = time.monotonic()
+    with pytest.raises(AccessError) as error:
+        client.query("synthetic-token", "Pergunta")
+    assert error.value.status == 503
+    assert resolver_started.is_set()
+    assert not resolver_finished.is_set(), (
+        f"Deadline waited {time.monotonic() - start:.2f}s for DNS to finish"
+    )
+    resolver_can_finish.set()
+    assert resolver_finished.wait(timeout=1)
+    assert not request_received.wait(timeout=0.2)
+    assert state["requests"] == []

@@ -1,4 +1,6 @@
+import asyncio
 import json
+import threading
 import time
 from datetime import UTC, datetime
 from uuid import uuid4
@@ -10,6 +12,7 @@ from pydantic import ValidationError
 from sqlalchemy import event
 from test_advanced import auth, create
 from test_module5_client import ARTIGO
+from test_module5_client import delayed_resolver as delayed_resolver
 from test_module5_client import module5_http as module5_http
 
 from projects_service.app import create_app
@@ -281,3 +284,33 @@ def test_project_api_sanitizes_provider_errors(curation_app, code, expected_stat
     assert len(state["session_requests"]) == 2
     if expected_status == 401:
         assert result.headers["WWW-Authenticate"] == "Bearer"
+
+
+def test_api_query_cancels_dns_on_shared_service_loop(curation_app, delayed_resolver, monkeypatch):
+    from projects_service.module5_client import Module5Client
+
+    client, project, user_auth, state = curation_app
+    resolver_started, resolver_can_finish, resolver_finished = delayed_resolver
+    shared_loop = client.portal.call(asyncio.get_running_loop)
+    getaddrinfo = shared_loop.getaddrinfo
+    shared_resolver_used = threading.Event()
+    request_received = threading.Event()
+
+    async def track_shared_dns(host, *args, **kwargs):
+        if host in {"localhost", b"localhost"}:
+            shared_resolver_used.set()
+        return await getaddrinfo(host, *args, **kwargs)
+
+    monkeypatch.setattr(shared_loop, "getaddrinfo", track_shared_dns)
+    state["on_curation"] = request_received.set
+    base = client.app.state.settings.module5_base_url.replace("127.0.0.1", "localhost")
+    client.app.state.module5 = Module5Client(base, deadline_seconds=0.35)
+    result = client.post(endpoint(project, "queries"), json={"pergunta": "x"}, headers=user_auth())
+    assert result.status_code == 503
+    assert shared_resolver_used.is_set()
+    assert resolver_started.is_set()
+    assert not resolver_finished.is_set()
+    resolver_can_finish.set()
+    assert resolver_finished.wait(timeout=1)
+    assert not request_received.wait(timeout=0.2)
+    assert state["requests"] == []
