@@ -7,9 +7,21 @@ import pytest
 
 SOURCE = Path(__file__).resolve().parents[1] / "src" / "projects_service"
 LAYERS = {
-    "domain": ("domain", "access_domain", "collaboration_domain", "recommendation_domain"),
-    "application": ("service", "access_service", "collaboration_service", "recommendation_service"),
-    "presentation": ("routes", "access_routes", "collaboration_routes"),
+    "domain": (
+        "domain",
+        "access_domain",
+        "collaboration_domain",
+        "recommendation_domain",
+        "module5_domain",
+    ),
+    "application": (
+        "service",
+        "access_service",
+        "collaboration_service",
+        "recommendation_service",
+        "module5_service",
+    ),
+    "presentation": ("routes", "access_routes", "collaboration_routes", "module5_routes"),
 }
 FORBIDDEN = {
     "domain": {
@@ -38,6 +50,9 @@ FORBIDDEN = {
         "projects_service.integrations",
         "projects_service.gemini_adapter",
         "projects_service.collaboration_routes",
+        "projects_service.module5_client",
+        "projects_service.module5_service",
+        "projects_service.module5_routes",
     },
     "application": {
         "fastapi",
@@ -52,6 +67,8 @@ FORBIDDEN = {
         "httpx2",
         "projects_service.integrations",
         "projects_service.gemini_adapter",
+        "projects_service.module5_client",
+        "projects_service.module5_routes",
     },
     "presentation": {
         "sqlalchemy",
@@ -59,6 +76,7 @@ FORBIDDEN = {
         "projects_service.repository",
         "projects_service.access_repository",
         "projects_service.database",
+        "projects_service.module5_client",
     },
 }
 

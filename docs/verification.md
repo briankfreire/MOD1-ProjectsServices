@@ -268,3 +268,21 @@ ignorados. Nenhum teste removeu dados/schemas do Neon ou alterou identidade.
 - Nenhum banco remoto, grant, configuração Azure, deploy ou dado de produção
   foi alterado. A integração PostgreSQL opt-in continua pendente nesta etapa.
 - Componentes e limites das camadas estão em [architecture.md](architecture.md).
+
+
+## Curadoria do Módulo 5 — 18/11/2026
+
+- Projetos 0.7.0 teve **406 testes aprovados e 11 não executados** em 237,40 s.
+  Dez casos opcionais exigem PostgreSQL descartável em loopback. Um caso
+  opcional exige um checkout separado do Backlog.
+- **71 testes focados** passaram com SQLite isolado, JWTs sintéticos e HTTP
+  loopback. Cobrem autorização, revogação e expiração durante a chamada,
+  liberação de conexão antes de acessar o provedor, preservação da versão
+  do projeto, limites de dados, timeout, erros e envio único. A verificação
+  da configuração de release confirma as variáveis de curadoria apenas
+  na API, com o worker de notificações preservado.
+- Ruff, formatação, mypy e consistência do lock foram verificados.
+  O OpenAPI local anuncia a versão 0.7.0 com autenticação Bearer nas duas rotas.
+- Uma chamada de verificação diretamente ao Módulo 5 aceitou o Bearer do
+  Módulo 1 e retornou artigos para uma pergunta sintética.
+  [Contrato de curadoria](module5-curation.md).
