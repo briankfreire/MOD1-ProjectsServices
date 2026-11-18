@@ -143,3 +143,17 @@ a outbox externa no schema próprio. `module6_client.py` implementa o transporte
 origem do UUID; a reserva e a atualização do resultado têm transações curtas,
 fora do POST. A API não precisa acessar o receptor para atender uma operação.
 Veja o [contrato e a operação do Módulo 6](module6-notifications.md).
+
+## Curadoria no projeto
+
+`module5_routes.py` expõe o feed e a pesquisa. `module5_domain.py` valida a
+pergunta, os artigos e o resultado público. `module5_service.py` coordena a
+autorização e a consulta por funções injetadas em `dependencies.py`, que usa
+`AccessService` com uma sessão curta para cada leitura. O adaptador HTTP
+`module5_client.py` atende a aplicação síncrona com uma requisição cancelável
+e prazo total de 60 segundos.
+
+A primeira leitura de permissões termina antes da requisição externa. Após a
+chamada, Projetos verifica novamente JWT e sessão na Identidade e lê a
+permissão atual em nova sessão. A consulta preserva a versão e o histórico
+do projeto. Veja o [contrato de curadoria](module5-curation.md).

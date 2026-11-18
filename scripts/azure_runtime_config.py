@@ -10,6 +10,10 @@ import time
 from pathlib import Path
 from urllib.request import urlopen
 
+MODULE5_BASE_URL = (
+    "https://agente-tendencias-tecnologicas-fyd3bzerc9a2cqcu.chilecentral-01.azurewebsites.net"
+)
+
 
 def build_secret_patch(app, existing_values, updates):
     values = {item["name"]: item for item in existing_values}
@@ -42,6 +46,7 @@ def build_runtime_patch(
     *,
     service,
     enable_notifications=False,
+    enable_curation=False,
     notification_source=None,
     resend_from="",
     model="gemini-3.5-flash-lite",
@@ -59,6 +64,8 @@ def build_runtime_patch(
         or (service == "projects" and notification_source != "backlog")
     ):
         raise ValueError("Module 6 requires the explicitly selected Module 1 source")
+    if enable_curation and service != "projects":
+        raise ValueError("Module 5 curation requires the Projects API")
     if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9._-]{0,99}", model):
         raise ValueError("Invalid Gemini model")
     template = copy.deepcopy(app["properties"]["template"])
@@ -111,6 +118,12 @@ def build_runtime_patch(
             "value": "false",
         }
         env["CODE_REVIEW_ENABLED"] = {"name": "CODE_REVIEW_ENABLED", "value": "false"}
+    if service == "projects":
+        env["MODULE5_ENABLED"] = {
+            "name": "MODULE5_ENABLED",
+            "value": "true" if enable_curation else "false",
+        }
+        env["MODULE5_BASE_URL"] = {"name": "MODULE5_BASE_URL", "value": MODULE5_BASE_URL}
     api["image"] = image
     template["containers"] = [api]
     if enable_notifications:
@@ -194,6 +207,7 @@ def main():
         "enable_notifications": service == "backlog"
         or (service == "projects" and os.environ.get("MODULE6_ENABLED", "false").lower() == "true"),
         "notification_source": os.environ.get("MODULE6_SOURCE") or None,
+        "enable_curation": os.environ.get("MODULE5_ENABLED", "false").lower() == "true",
         "resend_from": os.environ.get("RESEND_FROM", ""),
         "model": os.environ.get("GEMINI_MODEL", "gemini-3.5-flash-lite"),
     }
@@ -242,6 +256,7 @@ def main():
                             "image": image,
                             "gemini_enabled": True,
                             "notifications_enabled": options["enable_notifications"],
+                            "curation_enabled": options["enable_curation"],
                         }
                     )
                 )

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.0 — 2026-11-18
+
+- Feed e busca de artigos do Módulo 5 para usuários com sessão ativa e
+  `project:read`, inclusive em projetos arquivados.
+- Respostas tipadas e limitadas, com nova verificação de sessão e permissão
+  após a consulta. A operação preserva a versão do projeto.
+- Ativação opcional na API de Projetos. [Contrato e configuração](docs/module5-curation.md).
+
 ## Ativação de notificações de projetos e equipes — 2026-11-15 (0.6.0)
 
 - Ativação explícita no pipeline com `source=backlog` para o Módulo 1 e tipos

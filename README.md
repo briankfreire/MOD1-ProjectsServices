@@ -18,6 +18,9 @@ Contrato atual, limites, segurança, migração e notificações:
 Contrato de exclusão para o GitHub Sync: [Módulo 2 — DELETE de projetos](docs/module2-project-deletion.md),
 com respostas HTTP, impedimentos por backlog/vínculos e tratamento da interface.
 
+A versão `0.7.0` acrescenta feed e busca de artigos dentro do projeto para
+usuários com `project:read`. [Contrato e configuração da curadoria](docs/module5-curation.md).
+
 ## Executar localmente
 
 Python 3.12 e uv. Configure `.env` a partir de `.env.example`, com schema e

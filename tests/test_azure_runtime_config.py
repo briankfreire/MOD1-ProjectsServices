@@ -380,3 +380,47 @@ def test_multiple_revision_traffic_mode_aborts_before_release_patch():
         module().build_runtime_patch(
             before, image("backlog"), service="backlog", enable_notifications=True
         )
+
+
+def test_projects_curates_only_in_api_container_preserving_other_settings():
+    helper = module()
+    before = app("projects")
+    baseline = helper.build_runtime_patch(
+        before,
+        image("projects"),
+        service="projects",
+        enable_notifications=True,
+        notification_source="backlog",
+    )
+    enabled = helper.build_runtime_patch(
+        before,
+        image("projects"),
+        service="projects",
+        enable_notifications=True,
+        notification_source="backlog",
+        enable_curation=True,
+    )
+    api, worker = enabled["properties"]["template"]["containers"]
+    baseline_api, baseline_worker = baseline["properties"]["template"]["containers"]
+    assert worker == baseline_worker
+    env = {v["name"]: v for v in api["env"]}
+    assert env.pop("MODULE5_ENABLED") == {"name": "MODULE5_ENABLED", "value": "true"}
+    assert env.pop("MODULE5_BASE_URL") == {
+        "name": "MODULE5_BASE_URL",
+        "value": (
+            "https://agente-tendencias-tecnologicas-fyd3bzerc9a2cqcu"
+            ".chilecentral-01.azurewebsites.net"
+        ),
+    }
+    baseline_env = {v["name"]: v for v in baseline_api["env"]}
+    assert baseline_env.pop("MODULE5_ENABLED")["value"] == "false"
+    baseline_env.pop("MODULE5_BASE_URL")
+    assert env == baseline_env
+
+
+@pytest.mark.parametrize("service", ["identity", "backlog"])
+def test_only_projects_can_enable_curation(service):
+    with pytest.raises(ValueError, match="Module 5"):
+        module().build_runtime_patch(
+            app(service), image(service), service=service, enable_curation=True
+        )

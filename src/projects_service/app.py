@@ -14,6 +14,8 @@ from projects_service.collaboration_routes import router as collaboration_router
 from projects_service.config import Settings
 from projects_service.database import create_database_engine
 from projects_service.integrations import AIClient, BacklogClient, IdentityStatusClient
+from projects_service.module5_client import Module5Client
+from projects_service.module5_routes import router as curation_router
 from projects_service.routes import router
 from projects_service.security import TokenVerifier
 from projects_service.service import utc_now
@@ -51,6 +53,7 @@ def create_app(
     app.state.identity = IdentityStatusClient(settings)
     app.state.backlog = BacklogClient(settings)
     app.state.ai = AIClient(settings)
+    app.state.module5 = Module5Client(settings.module5_base_url)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
@@ -85,9 +88,13 @@ def create_app(
 
     @app.exception_handler(AccessError)
     async def access_error(request: Request, error: AccessError) -> JSONResponse:
-        return JSONResponse(status_code=error.status, content={"detail": error.detail})
+        headers = {"WWW-Authenticate": "Bearer"} if error.status == 401 else None
+        return JSONResponse(
+            status_code=error.status, content={"detail": error.detail}, headers=headers
+        )
 
     app.include_router(router)
     app.include_router(access_router)
     app.include_router(collaboration_router)
+    app.include_router(curation_router)
     return app
