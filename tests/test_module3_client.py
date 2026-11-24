@@ -178,10 +178,10 @@ def test_completed_operation_that_blocked_loop_past_deadline_is_discarded(module
     from projects_service.module3_client import Module3Client
 
     base, _ = module3_http
-    client = Module3Client(base, deadline_seconds=.02)
+    client = Module3Client(base, deadline_seconds=0.02)
 
     async def blocked_operation(_client):
-        time.sleep(.08)
+        time.sleep(0.08)
         return "late payload"
 
     with pytest.raises(AccessError) as error:
