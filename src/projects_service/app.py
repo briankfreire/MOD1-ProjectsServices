@@ -14,6 +14,8 @@ from projects_service.collaboration_routes import router as collaboration_router
 from projects_service.config import Settings
 from projects_service.database import create_database_engine
 from projects_service.integrations import AIClient, BacklogClient, IdentityStatusClient
+from projects_service.module3_client import Module3Client
+from projects_service.module3_routes import router as artifacts_router
 from projects_service.module5_client import Module5Client
 from projects_service.module5_routes import router as curation_router
 from projects_service.routes import router
@@ -54,6 +56,7 @@ def create_app(
     app.state.backlog = BacklogClient(settings)
     app.state.ai = AIClient(settings)
     app.state.module5 = Module5Client(settings.module5_base_url)
+    app.state.module3 = Module3Client(settings.module3_base_url)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
@@ -97,4 +100,5 @@ def create_app(
     app.include_router(access_router)
     app.include_router(collaboration_router)
     app.include_router(curation_router)
+    app.include_router(artifacts_router)
     return app

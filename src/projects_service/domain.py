@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 
 class Metadata(BaseModel):
+    module3_project_id: int | None = Field(default=None, strict=True, ge=1, le=9007199254740991)
     scope: str = Field(default="", max_length=10000)
     budget_amount: str | None = None
     budget_currency: str = Field(default="BRL", pattern=r"^[A-Z]{3}$")

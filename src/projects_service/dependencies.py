@@ -9,8 +9,11 @@ from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
+from projects_service.access_domain import AccessError
 from projects_service.access_service import AccessService
 from projects_service.collaboration_repository import CollaborationRepository
+from projects_service.module3_client import Module3Client
+from projects_service.module3_service import ArtifactsService
 from projects_service.module5_client import Module5Client
 from projects_service.module5_service import CurationService
 from projects_service.repository import ProjectRepository
@@ -114,6 +117,45 @@ async def curation_service(
 
 
 Curation = Annotated[CurationService, Depends(curation_service)]
+
+
+async def artifacts_service(
+    request: Request,
+    actor: CurationActor,
+    credentials: Credentials,
+) -> ArtifactsService:
+    assert credentials is not None
+    token = credentials.credentials
+    loop = asyncio.get_running_loop()
+    client: Module3Client = request.app.state.module3
+
+    def read_binding(user: UUID, project_id: UUID) -> int | None:
+        with Session(request.app.state.engine) as session:
+            project = build_projects_service(session, clock=request.app.state.clock).get(
+                user, project_id
+            )
+            if project is None:
+                raise AccessError(404, "Project unavailable")
+            return project.module3_project_id
+
+    def reauthenticate() -> None:
+        if verify_owner(request, token, require_online=True) != actor:
+            raise authentication_required()
+
+    return ArtifactsService(
+        enabled=request.app.state.settings.module3_enabled,
+        read_binding=read_binding,
+        reauthenticate=reauthenticate,
+        fetch_catalog=partial(client.catalog, loop=loop),
+        fetch_artifacts=lambda binding, search, kind: client.artifacts(
+            binding, search=search, artifact_type=kind, loop=loop
+        ),
+        fetch_versions=partial(client.versions, loop=loop),
+        fetch_download=partial(client.download, loop=loop),
+    )
+
+
+Artifacts = Annotated[ArtifactsService, Depends(artifacts_service)]
 
 
 def project_service(request: Request) -> Iterator[ProjectsService]:
