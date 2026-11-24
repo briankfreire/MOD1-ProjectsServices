@@ -18,6 +18,97 @@ EVENT = UUID("22222222-2222-4222-8222-222222222222")
 KEY = "synthetic-test-key"
 
 
+@pytest.mark.parametrize("enqueue_on_sleep", [None, 29], ids=["idle", "activity-resets-heartbeat"])
+def test_continuous_worker_bounds_count_queries_without_delaying_delivery(
+    m6_engine, monkeypatch, capsys, enqueue_on_sleep
+):
+    import json
+    from types import SimpleNamespace
+
+    from sqlalchemy import event
+
+    cli = worker_cli()
+    clock = {"seconds": 0, "sleeps": 0}
+    counted_at = []
+    claims = []
+    received = []
+
+    def trace(connection, cursor, statement, parameters, context, executemany):
+        if "GROUP BY" in statement:
+            counted_at.append(clock["seconds"])
+        elif statement.lstrip().startswith("SELECT") and "module6_notification_outbox" in statement:
+            claims.append(clock["seconds"])
+
+    event.listen(m6_engine, "before_cursor_execute", trace)
+
+    def sleep(seconds):
+        assert seconds == 10
+        assert m6_engine.pool.checkedout() == 0
+        clock["sleeps"] += 1
+        if clock["sleeps"] == 61:
+            raise KeyboardInterrupt
+        clock["seconds"] += seconds
+        if clock["sleeps"] == enqueue_on_sleep:
+            enqueue(m6_engine)
+
+    def receive(request):
+        received.append(clock["seconds"])
+        return receiver_reply(request)
+
+    adapter = sender(receive)
+    monkeypatch.setattr(
+        cli,
+        "Settings",
+        lambda: Settings(
+            _env_file=None,
+            database_url=str(m6_engine.url),
+            module6_enabled=True,
+            module6_key=KEY,
+            module6_source="backlog",
+        ),
+    )
+    monkeypatch.setattr(cli, "create_database_engine", lambda settings: m6_engine)
+    monkeypatch.setattr(cli, "Module6Client", lambda *args: adapter)
+    monkeypatch.setattr(
+        cli, "time", SimpleNamespace(monotonic=lambda: clock["seconds"], sleep=sleep)
+    )
+    try:
+        assert cli.main(["run"]) == 0
+    finally:
+        event.remove(m6_engine, "before_cursor_execute", trace)
+    reports = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert counted_at == ([0, 300, 600] if enqueue_on_sleep is None else [0, 290, 590])
+    assert len(reports) == 3
+    assert [report["attempted"] for report in reports] == (
+        [0, 0, 0] if enqueue_on_sleep is None else [0, 1, 0]
+    )
+    assert len(claims) == (61 if enqueue_on_sleep is None else 62)
+    assert received == ([] if enqueue_on_sleep is None else [290])
+    if enqueue_on_sleep is not None:
+        assert record(m6_engine).status == "delivered"
+        assert record(m6_engine).attempts == 1
+
+
+def test_one_shot_dispatch_reports_empty_queue(m6_engine, monkeypatch, capsys):
+    import json
+
+    cli = worker_cli()
+    monkeypatch.setattr(
+        cli,
+        "Settings",
+        lambda: Settings(
+            _env_file=None,
+            database_url=str(m6_engine.url),
+            module6_enabled=True,
+            module6_key=KEY,
+            module6_source="backlog",
+        ),
+    )
+    monkeypatch.setattr(cli, "create_database_engine", lambda settings: m6_engine)
+    assert cli.main(["dispatch"]) == 0
+    assert json.loads(capsys.readouterr().out) == {"attempted": 0, "states": {}}
+
+
 def modules():
     try:
         return tuple(

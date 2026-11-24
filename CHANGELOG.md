@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.1 — 2026-11-24
+
+- Reduz contagens completas da fila e logs ociosos do worker M6 para cada cinco minutos.
+- Preserva a consulta de eventos a cada dez segundos, os relatórios após tentativas de envio e os comandos operacionais.
+- Testes com SQL real verificam ociosidade, entrega na próxima consulta e ausência de duplicação.
+
 ## 0.8.0 — 2026-11-24
 
 - Integração somente GET com artefatos, versões e download do Módulo 3.
