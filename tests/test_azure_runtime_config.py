@@ -424,3 +424,24 @@ def test_only_projects_can_enable_curation(service):
         module().build_runtime_patch(
             app(service), image(service), service=service, enable_curation=True
         )
+
+
+def test_artifacts_enabled_only_in_api_preserves_database_and_worker():
+    helper = module()
+    before = app("projects")
+    result = helper.build_runtime_patch(
+        before,
+        image("projects"),
+        service="projects",
+        enable_notifications=True,
+        notification_source="backlog",
+        enable_artifacts=True,
+    )
+    api, worker = result["properties"]["template"]["containers"]
+    env = {v["name"]: v for v in api["env"]}
+    assert env["MODULE3_ENABLED"]["value"] == "true"
+    assert env["MODULE3_BASE_URL"]["value"].startswith("https://modulo3-")
+    original = {v["name"]: v for v in before["properties"]["template"]["containers"][0]["env"]}
+    assert env["DATABASE_URL"] == original["DATABASE_URL"]
+    assert env["CORS_ORIGINS"] == original["CORS_ORIGINS"]
+    assert not any(v["name"].startswith("MODULE3") for v in worker["env"])

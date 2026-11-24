@@ -5,6 +5,8 @@ from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import make_url
 
+from projects_service.module3_client import BASE_URL as MODULE3_BASE_URL
+from projects_service.module3_client import trusted_base_url as trusted_artifacts_base
 from projects_service.module5_client import BASE_URL, trusted_base_url
 
 LOOPBACK = {"localhost", "127.0.0.1", "::1"}
@@ -12,6 +14,14 @@ LOOPBACK = {"localhost", "127.0.0.1", "::1"}
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", hide_input_in_errors=True)
+
+    module3_enabled: bool = False
+    module3_base_url: str = MODULE3_BASE_URL
+
+    @field_validator("module3_base_url")
+    @classmethod
+    def validate_module3_base_url(cls, value: str) -> str:
+        return trusted_artifacts_base(value)
 
     module5_enabled: bool = False
     module5_base_url: str = BASE_URL

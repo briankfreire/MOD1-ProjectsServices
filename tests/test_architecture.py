@@ -13,6 +13,7 @@ LAYERS = {
         "collaboration_domain",
         "recommendation_domain",
         "module5_domain",
+        "module3_domain",
     ),
     "application": (
         "service",
@@ -20,8 +21,15 @@ LAYERS = {
         "collaboration_service",
         "recommendation_service",
         "module5_service",
+        "module3_service",
     ),
-    "presentation": ("routes", "access_routes", "collaboration_routes", "module5_routes"),
+    "presentation": (
+        "routes",
+        "access_routes",
+        "collaboration_routes",
+        "module5_routes",
+        "module3_routes",
+    ),
 }
 FORBIDDEN = {
     "domain": {
@@ -79,6 +87,18 @@ FORBIDDEN = {
         "projects_service.module5_client",
     },
 }
+
+FORBIDDEN["domain"].update(
+    {
+        "projects_service.module3_client",
+        "projects_service.module3_service",
+        "projects_service.module3_routes",
+    }
+)
+FORBIDDEN["application"].update(
+    {"projects_service.module3_client", "projects_service.module3_routes"}
+)
+FORBIDDEN["presentation"].add("projects_service.module3_client")
 
 
 @pytest.mark.parametrize("layer", LAYERS)

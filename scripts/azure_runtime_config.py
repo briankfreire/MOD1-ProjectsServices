@@ -13,6 +13,7 @@ from urllib.request import urlopen
 MODULE5_BASE_URL = (
     "https://agente-tendencias-tecnologicas-fyd3bzerc9a2cqcu.chilecentral-01.azurewebsites.net"
 )
+MODULE3_BASE_URL = "https://modulo3-fhgjdpa6d5bbfvff.canadacentral-01.azurewebsites.net"
 
 
 def build_secret_patch(app, existing_values, updates):
@@ -47,6 +48,7 @@ def build_runtime_patch(
     service,
     enable_notifications=False,
     enable_curation=False,
+    enable_artifacts=False,
     notification_source=None,
     resend_from="",
     model="gemini-3.5-flash-lite",
@@ -66,6 +68,8 @@ def build_runtime_patch(
         raise ValueError("Module 6 requires the explicitly selected Module 1 source")
     if enable_curation and service != "projects":
         raise ValueError("Module 5 curation requires the Projects API")
+    if enable_artifacts and service != "projects":
+        raise ValueError("Module 3 artifacts require the Projects API")
     if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9._-]{0,99}", model):
         raise ValueError("Invalid Gemini model")
     template = copy.deepcopy(app["properties"]["template"])
@@ -119,6 +123,9 @@ def build_runtime_patch(
         }
         env["CODE_REVIEW_ENABLED"] = {"name": "CODE_REVIEW_ENABLED", "value": "false"}
     if service == "projects":
+        if enable_artifacts:
+            env["MODULE3_ENABLED"] = {"name": "MODULE3_ENABLED", "value": "true"}
+            env["MODULE3_BASE_URL"] = {"name": "MODULE3_BASE_URL", "value": MODULE3_BASE_URL}
         env["MODULE5_ENABLED"] = {
             "name": "MODULE5_ENABLED",
             "value": "true" if enable_curation else "false",
@@ -208,6 +215,7 @@ def main():
         or (service == "projects" and os.environ.get("MODULE6_ENABLED", "false").lower() == "true"),
         "notification_source": os.environ.get("MODULE6_SOURCE") or None,
         "enable_curation": os.environ.get("MODULE5_ENABLED", "false").lower() == "true",
+        "enable_artifacts": os.environ.get("MODULE3_ENABLED", "false").lower() == "true",
         "resend_from": os.environ.get("RESEND_FROM", ""),
         "model": os.environ.get("GEMINI_MODEL", "gemini-3.5-flash-lite"),
     }

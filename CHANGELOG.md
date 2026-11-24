@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.0 — 2026-11-24
+
+- Integração somente GET com artefatos, versões e download do Módulo 3.
+- Vínculo explícito nos metadados existentes, sem migração de schema;
+  sessão/permissão/vínculo revalidados após a consulta.
+- Transporte limitado e anexo seguro, sem encaminhar credenciais M1.
+- [Contrato e operação](docs/module3-artifacts.md). Análises de IA não são disparadas.
+
 ## 0.7.0 — 2026-11-18
 
 - Feed e busca de artigos do Módulo 5 para usuários com sessão ativa e
