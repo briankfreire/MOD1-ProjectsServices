@@ -1,11 +1,13 @@
 # Projetos na Azure
 
-A API usa um Azure Container App próprio com Neon. Os recursos compartilhados e os três apps são compostos pelo repositório de identidade. Siga o [passo a passo completo](https://github.com/Ckenz0/MOD1-IdentityService/blob/main/docs/deploy-azure.md) para assinatura, bootstrap, OIDC, segredos, imagens, APIs e frontend.
+A migração de 23/11/2026 recupera o backup de 16/11; registros posteriores não estão incluídos. Os endpoints permanecem iguais. [Banco e recuperação](https://github.com/Ckenz0/MOD1-IdentityService/blob/main/docs/database-azure-postgresql.md).
+
+A API usa um Azure Container App próprio com PostgreSQL gerenciado na Azure. Os recursos compartilhados e os três apps são compostos pelo repositório de identidade. Siga o [passo a passo completo](https://github.com/Ckenz0/MOD1-IdentityService/blob/main/docs/deploy-azure.md) para assinatura, bootstrap, OIDC, segredos, imagens, APIs e frontend.
 
 ## Configuração deste serviço
 
 - Imagem: `REGISTRY.azurecr.io/projects@sha256:DIGEST`; Dockerfile Linux/Python 3.12, usuário 10001, porta alvo 8001 e host 0.0.0.0.
-- Neon: schema `projects`, papel runtime exclusivo com USAGE e SELECT/INSERT/UPDATE/DELETE somente em `projects.projects`. Antes de publicar 0.3.0, execute explicitamente a migração de objective e confira as permissões conforme [database-neon.md](database-neon.md). Use conexão direta com `sslmode=verify-full&sslrootcert=/etc/ssl/certs/ca-certificates.crt`.
+- PostgreSQL Azure: schema `projects` e runtime exclusivo, sem DDL ou leitura de outros schemas. Prepare migrações e privilégios por tabela/operação conforme o [guia atual do banco](https://github.com/Ckenz0/MOD1-IdentityService/blob/main/docs/database-azure-postgresql.md). Use `sslmode=verify-full&sslrootcert=/etc/ssl/certs/ca-certificates.crt`.
 - Key Vault: segredo versionado `projects-database-url`. Não copie a chave RSA de identidade para este serviço.
 - JWT: issuer igual à URL HTTPS estável da identidade, audience `engenharia-software-api` e JWKS em `URL_DA_IDENTIDADE/.well-known/jwks.json`.
 - CORS: somente a origem HTTPS estável do frontend. Readiness consulta o banco próprio; liveness não depende de banco/JWKS.
