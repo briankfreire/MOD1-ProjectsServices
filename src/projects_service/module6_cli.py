@@ -16,6 +16,8 @@ from projects_service.module6_client import Module6Client
 from projects_service.notification_delivery import dispatch
 from projects_service.notification_repository import NotificationOutbox
 
+IDLE_REPORT_SECONDS = 300
+
 
 def batch_size(value: str) -> int:
     size = int(value)
@@ -76,12 +78,17 @@ def main(argv: Sequence[str] | None = None) -> int:
             sender = Module6Client(
                 settings.module6_endpoint, settings.module6_key.get_secret_value()
             )
+            next_report_at = time.monotonic()
             while True:
                 attempted = dispatch(outbox, sender, limit=args.batch_size)
-                print(
-                    json.dumps({"attempted": attempted, "states": outbox.counts()}, sort_keys=True),
-                    flush=True,
-                )
+                if args.command == "dispatch" or attempted or time.monotonic() >= next_report_at:
+                    print(
+                        json.dumps(
+                            {"attempted": attempted, "states": outbox.counts()}, sort_keys=True
+                        ),
+                        flush=True,
+                    )
+                    next_report_at = time.monotonic() + IDLE_REPORT_SECONDS
                 if args.command == "dispatch":
                     return 0
                 time.sleep(args.poll_seconds)
