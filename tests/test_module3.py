@@ -163,3 +163,15 @@ def test_link_change_during_io_discards_payload(artifacts_app):
     response = client.get(endpoint(project), headers=owner)
     assert response.status_code == 409
     assert "Requisitos" not in response.text
+
+
+def test_download_openapi_declares_binary_attachment(artifacts_app):
+    client, _, _, _, _ = artifacts_app
+    schema = client.get("/openapi.json").json()
+    response = schema["paths"]["/projects/{project_id}/artifacts/{artifact_id}/download"]["get"][
+        "responses"
+    ]["200"]
+    assert response["content"]["application/octet-stream"]["schema"] == {
+        "type": "string",
+        "format": "binary",
+    }

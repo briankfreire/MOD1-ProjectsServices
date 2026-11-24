@@ -4,6 +4,7 @@ import asyncio
 import json
 import math
 import re
+import time
 from collections.abc import Awaitable, Callable
 from typing import TypeVar
 from urllib.parse import urlencode
@@ -59,6 +60,14 @@ class Module3Client:
         operation: Callable[[httpx.AsyncClient], Awaitable[T]],
         loop: asyncio.AbstractEventLoop | None,
     ) -> T:
+        started = time.monotonic()
+
+        def on_time(value: T) -> T:
+            # A non-yielding SSL/parse step can finish before the timer callback runs.
+            if time.monotonic() - started >= self.deadline_seconds:
+                raise TimeoutError("Artifact operation deadline exceeded")
+            return value
+
         async def perform() -> T:
             async with httpx.AsyncClient(
                 trust_env=False,
@@ -75,13 +84,13 @@ class Module3Client:
             if loop is not None:
                 future = asyncio.run_coroutine_threadsafe(bounded(), loop)
                 try:
-                    return future.result(timeout=self.deadline_seconds + 1)
+                    return on_time(future.result(timeout=self.deadline_seconds + 1))
                 except TimeoutError:
                     future.cancel()
                     raise
             local = asyncio.new_event_loop()
             try:
-                return local.run_until_complete(bounded())
+                return on_time(local.run_until_complete(bounded()))
             finally:
                 local.close()
         except (httpx.HTTPError, ValueError, RecursionError, TimeoutError):
@@ -89,6 +98,7 @@ class Module3Client:
 
     async def _read(self, client: httpx.AsyncClient, path: str, *, binary: bool = False) -> bytes:
         limit = MAX_DOWNLOAD_BYTES if binary else MAX_JSON_BYTES
+        client.cookies.clear()
         async with client.stream("GET", self.base_url + path) as response:
             if response.status_code == 404:
                 raise AccessError(404, "Artifact unavailable")

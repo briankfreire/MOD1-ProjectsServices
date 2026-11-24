@@ -41,7 +41,18 @@ def versions(
     return service.versions(actor, project_id, artifact_id, module3_project_id)
 
 
-@router.get("/{artifact_id}/download", response_class=Response)
+@router.get(
+    "/{artifact_id}/download",
+    response_class=Response,
+    responses={
+        200: {
+            "description": "Current artifact version as a bounded attachment",
+            "content": {
+                "application/octet-stream": {"schema": {"type": "string", "format": "binary"}}
+            },
+        }
+    },
+)
 def download(
     project_id: UUID,
     artifact_id: ArtifactId,

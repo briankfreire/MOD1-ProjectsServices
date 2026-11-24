@@ -1,20 +1,20 @@
 # Contrato de exclusão para o Módulo 2 — 31/10/2026
 
-## M?dulo 3 ? valida??o de 24/11/2026
+## Módulo 3 — validação de 24/11/2026
 
-- Cat?logo, arquivos, vers?es e download confrontados com a API real do dono,
-  apenas GET, sem Bearer/cookies M1 e sem mudar v?nculos em produ??o.
-- Testes de metadados, autoriza??o por projeto, revoga??o durante HTTP, troca de
-  v?nculo, isolamento de arquivos/vers?es, tempo/tamanho e erros do provedor.
-  A su?te local aprovou 436 casos e ignorou 11 opt-ins; o ?nico caso inicialmente
-  afetado pela configura??o de importa??o da CLI passou ap?s corrigir o ambiente
-  de teste. N?o houve corre??o de produto para essa falha de execu??o.
-- Ruff aprovado e mypy sem problemas em 38 m?dulos de fonte. Contrato HTTP local
+- Catálogo, arquivos, versões e download confrontados com a API real do dono,
+  apenas GET, sem Bearer/cookies M1 e sem mudar vínculos em produção.
+- Testes de metadados, autorização por projeto, revogação durante HTTP, troca de
+  vínculo, isolamento de arquivos/versões, tempo/tamanho e erros do provedor.
+  A suíte local aprovou 436 casos e ignorou 11 opt-ins; o único caso inicialmente
+  afetado pela configuração de importação da CLI passou após corrigir o ambiente
+  de teste. Não houve correção de produto para essa falha de execução.
+- Ruff aprovado e mypy sem problemas em 38 módulos de fonte. Contrato HTTP local
   exercitado com provedor loopback; nenhum teste destrutivo em banco remoto.
-- Navegador com APIs M1 reais e bancos SQLite tempor?rios: v?nculo expl?cito,
-  persist?ncia, vers?es, download real e conta de fora recusada sem consulta M3.
-- Sem tabela/migra??o nova. Credenciais, snapshots, dados pessoais e evid?ncias
-  operacionais permanecem privados. Esses testes locais n?o comprovam deploy
+- Navegador com APIs M1 reais e bancos SQLite temporários: vínculo explícito,
+  persistência, versões, download real e conta de fora recusada sem consulta M3.
+- Sem tabela/migração nova. Credenciais, snapshots, dados pessoais e evidências
+  operacionais permanecem privados. Esses testes locais não comprovam deploy
   Azure nem disponibilidade futura do provedor. [Contrato](module3-artifacts.md).
 
 

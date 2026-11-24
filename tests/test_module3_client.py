@@ -173,6 +173,22 @@ def test_total_deadline_cancels_slow_provider(module3_http):
     assert time.monotonic() - start < 1
 
 
+def test_completed_operation_that_blocked_loop_past_deadline_is_discarded(module3_http):
+    from projects_service.access_domain import AccessError
+    from projects_service.module3_client import Module3Client
+
+    base, _ = module3_http
+    client = Module3Client(base, deadline_seconds=.02)
+
+    async def blocked_operation(_client):
+        time.sleep(.08)
+        return "late payload"
+
+    with pytest.raises(AccessError) as error:
+        client._run(blocked_operation, None)
+    assert error.value.status == 503
+
+
 @pytest.mark.parametrize(
     "base", ["https://example.com", "http://localhost", "http://127.0.0.1:1/x"]
 )
@@ -231,3 +247,17 @@ def test_download_rejects_oversize_before_accepting_file(module3_http):
     with pytest.raises(AccessError) as error:
         Module3Client(base).download(7, 41)
     assert error.value.status == 503
+
+
+def test_provider_cookie_is_not_replayed_to_download(module3_http):
+    from projects_service.module3_client import Module3Client
+
+    base, state = module3_http
+    state["route_overrides"]["/projects/7/artifacts/"] = (
+        200,
+        json.dumps([ARTIFACT]).encode(),
+        {"Content-Type": "application/json", "Set-Cookie": "tracking=value; Path=/"},
+    )
+    Module3Client(base).download(7, 41)
+    assert len(state["requests"]) == 2
+    assert all(not headers.get("Cookie") for _, _, headers in state["requests"])
